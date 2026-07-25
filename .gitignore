@@ -33,4 +33,5 @@ test-results/
 # Local database volumes or dumps
 postgres-data/
 *.sql
+!apps/api/drizzle/*.sql
 *.dump

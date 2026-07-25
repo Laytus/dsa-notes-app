@@ -16,6 +16,9 @@
     "typecheck": "pnpm --filter @dsa-notes/api --filter @dsa-notes/web typecheck",
     "test": "pnpm --filter @dsa-notes/api --filter @dsa-notes/web test",
     "build": "pnpm --filter @dsa-notes/api --filter @dsa-notes/web build",
-    "validate": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+    "validate": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "db:generate": "pnpm --filter @dsa-notes/api db:generate",
+    "db:migrate": "pnpm --filter @dsa-notes/api db:migrate",
+    "test:db": "pnpm --filter @dsa-notes/api test:db"
   }
 }

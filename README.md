@@ -102,7 +102,8 @@ Corepack available, it can activate the requested pnpm version automatically.
 pnpm install
 ```
 
-No database client or ORM is installed in this foundation phase.
+The API uses Drizzle ORM with the `postgres` JavaScript driver. Drizzle Kit
+generates and applies committed SQL migrations.
 
 ## Configure the environment
 
@@ -116,6 +117,18 @@ The example contains local-only development credentials. Change them in `.env`
 if the defaults conflict with another local PostgreSQL installation. Do not
 commit `.env`.
 
+Load the variables into the current shell before running database commands:
+
+```bash
+set -a
+source .env
+set +a
+```
+
+`DATABASE_URL` targets the persistent development database. `DATABASE_TEST_URL`
+is a safety-qualified base URL used to create a unique temporary database for
+each integration-test run. Its database name must contain `test`.
+
 ## Start PostgreSQL
 
 PostgreSQL 18 runs as the only Docker Compose service:
@@ -125,14 +138,39 @@ docker compose up -d postgres
 docker compose ps
 ```
 
-The service uses the `postgres-data` named volume. Normal start and stop
-commands preserve that volume:
+Wait until `docker compose ps` reports the service as healthy, then apply the
+committed migrations:
+
+```bash
+pnpm db:migrate
+```
+
+Generate a new reviewable migration after an approved schema change:
+
+```bash
+pnpm db:generate
+```
+
+Generated SQL is stored under `apps/api/drizzle/`. Migration files are the
+source-of-truth workflow; schema push is not used.
+
+Run the isolated database integration tests:
+
+```bash
+pnpm test:db
+```
+
+The tests refuse a `DATABASE_TEST_URL` whose database name does not contain
+`test`. They create a uniquely named temporary database on the configured
+PostgreSQL server, apply migrations, run independently cleaned tests, close all
+connections, and drop only that temporary test database.
+
+The Compose service uses the `postgres-data` named volume. Stop it without
+deleting development data:
 
 ```bash
 docker compose stop postgres
 ```
-
-There is no application database schema or migration command yet.
 
 ## Start the applications
 
@@ -180,7 +218,8 @@ It returns:
 
 The health endpoint and API startup do not require PostgreSQL. The Angular
 application does not call the API yet, so no development proxy or CORS
-middleware is configured.
+middleware is configured. Category, tag, and problem CRUD endpoints are not yet
+implemented.
 
 ## Validation
 
