@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
+import type { InjectOptions } from 'fastify';
 import postgres, { type Sql } from 'postgres';
 import {
   afterAll,
@@ -62,6 +63,17 @@ async function createProblem(categoryId: bigint): Promise<bigint> {
     .returning({ id: problems.id });
   if (!record) throw new Error('Failed to create problem fixture.');
   return record.id;
+}
+
+async function injectApi(
+  options: InjectOptions,
+) {
+  const app = buildApp({ database: requireDatabase() });
+  try {
+    return await app.inject(options);
+  } finally {
+    await app.close();
+  }
 }
 
 beforeAll(async () => {
@@ -540,4 +552,699 @@ describe('tag HTTP API', () => {
       expect(response.json()).toHaveProperty('error.code', 'INVALID_ID');
     },
   );
+});
+
+describe('problem HTTP API', () => {
+  it('returns an empty collection', async () => {
+    const response = await injectApi({ method: 'GET', url: '/api/problems' });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual([]);
+  });
+
+  it('creates a minimal problem with documented defaults and nulls', async () => {
+    const categoryId = await createCategory('Arrays');
+    const response = await injectApi({
+      method: 'POST',
+      url: '/api/problems',
+      payload: { name: ' Two Sum ', categoryId: categoryId.toString() },
+    });
+    const body = response.json<{
+      id: string;
+      name: string;
+      category: { id: string; name: string };
+      difficulty: null;
+      status: string;
+      tags: unknown[];
+      solution: null;
+      source: null;
+      notes: string;
+      timesSolved: number;
+      lastReviewedOn: null;
+      createdAt: string;
+      updatedAt: string;
+    }>();
+
+    expect(response.statusCode).toBe(201);
+    expect(response.headers.location).toBe(`/api/problems/${body.id}`);
+    expect(body).toMatchObject({
+      name: 'Two Sum',
+      category: { id: categoryId.toString(), name: 'Arrays' },
+      difficulty: null,
+      status: 'To solve',
+      tags: [],
+      solution: null,
+      source: null,
+      notes: '',
+      timesSolved: 0,
+      lastReviewedOn: null,
+    });
+    expect(body.id).toMatch(/^[1-9][0-9]*$/u);
+    expect(new Date(body.createdAt).toISOString()).toBe(body.createdAt);
+    expect(new Date(body.updatedAt).toISOString()).toBe(body.updatedAt);
+  });
+
+  it('creates and retrieves a complete hydrated problem', async () => {
+    const categoryId = await createCategory('Arrays');
+    const hashMapId = await createTag('Hash Map');
+    const arrayId = await createTag('array');
+    const created = await injectApi({
+      method: 'POST',
+      url: '/api/problems',
+      payload: {
+        name: 'Two Sum',
+        categoryId: categoryId.toString(),
+        difficulty: 'Easy',
+        status: 'Solved',
+        tagIds: [hashMapId.toString(), arrayId.toString()],
+        solution: {
+          url: ' https://example.com/solution ',
+          label: ' My solution ',
+        },
+        source: {
+          url: ' https://leetcode.com/problems/two-sum/ ',
+          label: ' LeetCode ',
+        },
+        notes: '  **Keep exactly**  ',
+        timesSolved: 2,
+        lastReviewedOn: '2026-07-25',
+      },
+    });
+    const createdBody = created.json<{ id: string }>();
+    const response = await injectApi({
+      method: 'GET',
+      url: `/api/problems/${createdBody.id}`,
+    });
+
+    expect(created.statusCode).toBe(201);
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      id: createdBody.id,
+      name: 'Two Sum',
+      category: { id: categoryId.toString(), name: 'Arrays' },
+      difficulty: 'Easy',
+      status: 'Solved',
+      tags: [
+        { id: arrayId.toString(), name: 'array' },
+        { id: hashMapId.toString(), name: 'Hash Map' },
+      ],
+      solution: {
+        url: 'https://example.com/solution',
+        label: 'My solution',
+      },
+      source: {
+        url: 'https://leetcode.com/problems/two-sum/',
+        label: 'LeetCode',
+      },
+      notes: '  **Keep exactly**  ',
+      timesSolved: 2,
+      lastReviewedOn: '2026-07-25',
+    });
+  });
+
+  it('hydrates collection categories and deterministically ordered tags', async () => {
+    const categoryId = await createCategory('Graphs');
+    const problemId = await createProblem(categoryId);
+    const zebraId = await createTag('zebra');
+    const arrayId = await createTag('Array');
+    await requireDatabase().insert(problemTags).values([
+      { problemId, tagId: zebraId },
+      { problemId, tagId: arrayId },
+    ]);
+
+    const response = await injectApi({ method: 'GET', url: '/api/problems' });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject([
+      {
+        id: problemId.toString(),
+        category: { id: categoryId.toString(), name: 'Graphs' },
+        tags: [
+          { id: arrayId.toString(), name: 'Array' },
+          { id: zebraId.toString(), name: 'zebra' },
+        ],
+      },
+    ]);
+  });
+
+  it('orders the collection case-insensitively by name and ID', async () => {
+    const categoryId = await createCategory();
+    await requireDatabase().insert(problems).values([
+      { categoryId, name: 'zebra' },
+      { categoryId, name: 'Array' },
+      { categoryId, name: 'binary' },
+    ]);
+
+    const response = await injectApi({ method: 'GET', url: '/api/problems' });
+    expect(
+      response
+        .json<Array<{ name: string }>>()
+        .map(({ name }) => name),
+    ).toEqual(['Array', 'binary', 'zebra']);
+  });
+
+  it('returns not found for a missing problem', async () => {
+    const response = await injectApi({
+      method: 'GET',
+      url: '/api/problems/9223372036854775807',
+    });
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toHaveProperty('error.code', 'PROBLEM_NOT_FOUND');
+  });
+
+  it.each([
+    { payload: { categoryId: '1' }, code: 'VALIDATION_ERROR' },
+    {
+      payload: { name: '   ', categoryId: '1' },
+      code: 'INVALID_PROBLEM_NAME',
+    },
+    {
+      payload: { name: 42, categoryId: '1' },
+      code: 'INVALID_PROBLEM_NAME',
+    },
+    {
+      payload: { name: 'Two Sum', categoryId: '1', extra: true },
+      code: 'VALIDATION_ERROR',
+    },
+    {
+      payload: {
+        name: 'Two Sum',
+        categoryId: '1',
+        source: { url: 'https://example.com', extra: true },
+      },
+      code: 'VALIDATION_ERROR',
+    },
+  ])('rejects invalid problem body %#', async ({ payload, code }) => {
+    const response = await injectApi({
+      method: 'POST',
+      url: '/api/problems',
+      payload,
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toHaveProperty('error.code', code);
+  });
+
+  it.each(['0', '-1', '01', '1.5', 'abc', '9223372036854775808'])(
+    'rejects malformed category ID %s',
+    async (categoryId) => {
+      const response = await injectApi({
+        method: 'POST',
+        url: '/api/problems',
+        payload: { name: 'Two Sum', categoryId },
+      });
+      expect(response.statusCode).toBe(400);
+      expect(response.json()).toHaveProperty(
+        'error.code',
+        'INVALID_CATEGORY_ID',
+      );
+    },
+  );
+
+  it('rejects a nonexistent category without a partial problem', async () => {
+    const response = await injectApi({
+      method: 'POST',
+      url: '/api/problems',
+      payload: {
+        name: 'Two Sum',
+        categoryId: '9223372036854775807',
+      },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toHaveProperty(
+      'error.code',
+      'CATEGORY_REFERENCE_NOT_FOUND',
+    );
+    await expect(requireDatabase().select().from(problems)).resolves.toEqual([]);
+  });
+
+  it.each([
+    { field: 'difficulty', value: 'Extreme', code: 'INVALID_DIFFICULTY' },
+    { field: 'status', value: 'Done', code: 'INVALID_STATUS' },
+  ])('rejects invalid $field', async ({ field, value, code }) => {
+    const categoryId = await createCategory();
+    const response = await injectApi({
+      method: 'POST',
+      url: '/api/problems',
+      payload: { name: 'Two Sum', categoryId: `${categoryId}`, [field]: value },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toHaveProperty('error.code', code);
+  });
+
+  it.each([['abc'], ['0'], [1], '1'])(
+    'rejects malformed tag IDs %#',
+    async (tagIds) => {
+      const categoryId = await createCategory();
+      const response = await injectApi({
+        method: 'POST',
+        url: '/api/problems',
+        payload: { name: 'Two Sum', categoryId: `${categoryId}`, tagIds },
+      });
+      expect(response.statusCode).toBe(400);
+      expect(response.json()).toHaveProperty('error.code', 'INVALID_TAG_ID');
+    },
+  );
+
+  it('rejects duplicate and nonexistent tags without partial writes', async () => {
+    const categoryId = await createCategory();
+    const tagId = await createTag();
+    const duplicate = await injectApi({
+      method: 'POST',
+      url: '/api/problems',
+      payload: {
+        name: 'Duplicate',
+        categoryId: `${categoryId}`,
+        tagIds: [`${tagId}`, `${tagId}`],
+      },
+    });
+    const missing = await injectApi({
+      method: 'POST',
+      url: '/api/problems',
+      payload: {
+        name: 'Missing',
+        categoryId: `${categoryId}`,
+        tagIds: [`${tagId}`, '9223372036854775807'],
+      },
+    });
+
+    expect(duplicate.statusCode).toBe(400);
+    expect(duplicate.json()).toHaveProperty(
+      'error.code',
+      'DUPLICATE_TAG_IDS',
+    );
+    expect(missing.statusCode).toBe(400);
+    expect(missing.json()).toHaveProperty(
+      'error.code',
+      'TAG_REFERENCE_NOT_FOUND',
+    );
+    await expect(requireDatabase().select().from(problems)).resolves.toEqual([]);
+    await expect(requireDatabase().select().from(problemTags)).resolves.toEqual(
+      [],
+    );
+  });
+
+  it.each([
+    {
+      link: { url: 'relative/path' },
+      code: 'INVALID_URL',
+      label: 'relative URL',
+    },
+    {
+      link: { url: 'ftp://example.com/file' },
+      code: 'INVALID_URL',
+      label: 'non-HTTP URL',
+    },
+    {
+      link: { url: 'https://example.com', label: ' ' },
+      code: 'INVALID_LINK_LABEL',
+      label: 'empty label',
+    },
+  ])('rejects $label', async ({ link, code }) => {
+    const categoryId = await createCategory();
+    const response = await injectApi({
+      method: 'POST',
+      url: '/api/problems',
+      payload: {
+        name: 'Two Sum',
+        categoryId: `${categoryId}`,
+        solution: link,
+      },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toHaveProperty('error.code', code);
+  });
+
+  it('applies default labels when link labels are omitted', async () => {
+    const categoryId = await createCategory();
+    const response = await injectApi({
+      method: 'POST',
+      url: '/api/problems',
+      payload: {
+        name: 'Two Sum',
+        categoryId: `${categoryId}`,
+        solution: { url: 'https://example.com/solution' },
+        source: { url: 'https://example.com/source' },
+      },
+    });
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toMatchObject({
+      solution: {
+        url: 'https://example.com/solution',
+        label: 'View solution',
+      },
+      source: { url: 'https://example.com/source', label: 'LeetCode' },
+    });
+  });
+
+  it.each([-1, 1.5, '1', 2_147_483_648])(
+    'rejects invalid times solved %s',
+    async (timesSolved) => {
+      const categoryId = await createCategory();
+      const response = await injectApi({
+        method: 'POST',
+        url: '/api/problems',
+        payload: {
+          name: 'Two Sum',
+          categoryId: `${categoryId}`,
+          timesSolved,
+        },
+      });
+      expect(response.statusCode).toBe(400);
+      expect(response.json()).toHaveProperty(
+        'error.code',
+        'INVALID_TIMES_SOLVED',
+      );
+    },
+  );
+
+  it.each(['2026-02-30', '2026-7-25', '2026-07-25T00:00:00Z'])(
+    'rejects invalid date %s',
+    async (lastReviewedOn) => {
+      const categoryId = await createCategory();
+      const response = await injectApi({
+        method: 'POST',
+        url: '/api/problems',
+        payload: {
+          name: 'Two Sum',
+          categoryId: `${categoryId}`,
+          lastReviewedOn,
+        },
+      });
+      expect(response.statusCode).toBe(400);
+      expect(response.json()).toHaveProperty(
+        'error.code',
+        'INVALID_LAST_REVIEWED_ON',
+      );
+    },
+  );
+
+  it('updates all mutable scalar fields without inferring review behavior', async () => {
+    const categoryId = await createCategory();
+    const problemId = await createProblem(categoryId);
+    const createdBefore = (
+      await requireDatabase()
+        .select()
+        .from(problems)
+        .where(eq(problems.id, problemId))
+    )[0];
+    const response = await injectApi({
+      method: 'PATCH',
+      url: `/api/problems/${problemId}`,
+      payload: {
+        name: ' Updated ',
+        difficulty: 'Hard',
+        status: 'Mastered',
+        solution: { url: 'https://example.com/s' },
+        source: { url: 'https://example.com/p', label: 'Problem' },
+        notes: 'raw **Markdown**',
+        timesSolved: 3,
+        lastReviewedOn: '2026-07-25',
+      },
+    });
+    const body = response.json<{
+      createdAt: string;
+      updatedAt: string;
+      [key: string]: unknown;
+    }>();
+
+    expect(response.statusCode).toBe(200);
+    expect(body).toMatchObject({
+      name: 'Updated',
+      difficulty: 'Hard',
+      status: 'Mastered',
+      solution: { url: 'https://example.com/s', label: 'View solution' },
+      source: { url: 'https://example.com/p', label: 'Problem' },
+      notes: 'raw **Markdown**',
+      timesSolved: 3,
+      lastReviewedOn: '2026-07-25',
+    });
+    expect(body.createdAt).toBe(createdBefore?.createdAt.toISOString());
+    expect(new Date(body.updatedAt).getTime()).toBeGreaterThanOrEqual(
+      createdBefore?.updatedAt.getTime() ?? 0,
+    );
+  });
+
+  it('clears nullable fields and preserves absent fields', async () => {
+    const categoryId = await createCategory();
+    const [problem] = await requireDatabase()
+      .insert(problems)
+      .values({
+        categoryId,
+        name: 'Two Sum',
+        difficulty: 'Medium',
+        solutionUrl: 'https://example.com/s',
+        solutionLabel: 'Solution',
+        sourceUrl: 'https://example.com/p',
+        sourceLabel: 'Source',
+        lastReviewedOn: '2026-07-25',
+        notes: 'preserve',
+      })
+      .returning({ id: problems.id });
+    if (!problem) throw new Error('Problem fixture failed.');
+
+    const response = await injectApi({
+      method: 'PATCH',
+      url: `/api/problems/${problem.id}`,
+      payload: {
+        difficulty: null,
+        solution: null,
+        source: null,
+        lastReviewedOn: null,
+      },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      name: 'Two Sum',
+      difficulty: null,
+      solution: null,
+      source: null,
+      lastReviewedOn: null,
+      notes: 'preserve',
+    });
+  });
+
+  it('replaces and removes tags atomically', async () => {
+    const categoryId = await createCategory();
+    const problemId = await createProblem(categoryId);
+    const oldTagId = await createTag('Old');
+    const newTagId = await createTag('New');
+    await requireDatabase()
+      .insert(problemTags)
+      .values({ problemId, tagId: oldTagId });
+
+    const replaced = await injectApi({
+      method: 'PATCH',
+      url: `/api/problems/${problemId}`,
+      payload: { tagIds: [`${newTagId}`] },
+    });
+    expect(replaced.statusCode).toBe(200);
+    expect(replaced.json()).toMatchObject({
+      tags: [{ id: `${newTagId}`, name: 'New' }],
+    });
+
+    const removed = await injectApi({
+      method: 'PATCH',
+      url: `/api/problems/${problemId}`,
+      payload: { tagIds: [] },
+    });
+    expect(removed.statusCode).toBe(200);
+    expect(removed.json()).toMatchObject({ tags: [] });
+  });
+
+  it('changes category while preserving createdAt and advancing updatedAt', async () => {
+    const oldCategoryId = await createCategory('Old');
+    const newCategoryId = await createCategory('New');
+    const problemId = await createProblem(oldCategoryId);
+    const oldDate = new Date('2020-01-01T00:00:00.000Z');
+    await requireDatabase()
+      .update(problems)
+      .set({ updatedAt: oldDate })
+      .where(eq(problems.id, problemId));
+    const before = (
+      await requireDatabase()
+        .select()
+        .from(problems)
+        .where(eq(problems.id, problemId))
+    )[0];
+
+    const response = await injectApi({
+      method: 'PATCH',
+      url: `/api/problems/${problemId}`,
+      payload: { categoryId: `${newCategoryId}` },
+    });
+    const body = response.json<{
+      category: { id: string };
+      createdAt: string;
+      updatedAt: string;
+    }>();
+    expect(response.statusCode).toBe(200);
+    expect(body.category.id).toBe(`${newCategoryId}`);
+    expect(body.createdAt).toBe(before?.createdAt.toISOString());
+    expect(new Date(body.updatedAt).getTime()).toBeGreaterThan(oldDate.getTime());
+  });
+
+  it.each([
+    { payload: {}, code: 'VALIDATION_ERROR' },
+    { payload: { unknown: true }, code: 'VALIDATION_ERROR' },
+  ])('rejects invalid PATCH body %#', async ({ payload, code }) => {
+    const categoryId = await createCategory();
+    const problemId = await createProblem(categoryId);
+    const response = await injectApi({
+      method: 'PATCH',
+      url: `/api/problems/${problemId}`,
+      payload,
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toHaveProperty('error.code', code);
+  });
+
+  it('rejects invalid references and rolls back every PATCH change', async () => {
+    const categoryId = await createCategory();
+    const problemId = await createProblem(categoryId);
+    const tagId = await createTag();
+    await requireDatabase()
+      .insert(problemTags)
+      .values({ problemId, tagId });
+
+    const response = await injectApi({
+      method: 'PATCH',
+      url: `/api/problems/${problemId}`,
+      payload: {
+        name: 'Must roll back',
+        tagIds: [`${tagId}`, '9223372036854775807'],
+      },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toHaveProperty(
+      'error.code',
+      'TAG_REFERENCE_NOT_FOUND',
+    );
+    await expect(
+      requireDatabase()
+        .select({ name: problems.name })
+        .from(problems)
+        .where(eq(problems.id, problemId)),
+    ).resolves.toEqual([{ name: 'Two Sum' }]);
+    await expect(
+      requireDatabase()
+        .select()
+        .from(problemTags)
+        .where(eq(problemTags.problemId, problemId)),
+    ).resolves.toHaveLength(1);
+  });
+
+  it('rejects a nonexistent PATCH category without changing the problem', async () => {
+    const categoryId = await createCategory();
+    const problemId = await createProblem(categoryId);
+    const response = await injectApi({
+      method: 'PATCH',
+      url: `/api/problems/${problemId}`,
+      payload: {
+        name: 'Must roll back',
+        categoryId: '9223372036854775807',
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toHaveProperty(
+      'error.code',
+      'CATEGORY_REFERENCE_NOT_FOUND',
+    );
+    await expect(
+      requireDatabase()
+        .select({ name: problems.name, categoryId: problems.categoryId })
+        .from(problems)
+        .where(eq(problems.id, problemId)),
+    ).resolves.toEqual([{ name: 'Two Sum', categoryId }]);
+  });
+
+  it('does not infer review fields from status or count during CRUD', async () => {
+    const categoryId = await createCategory();
+    const problemId = await createProblem(categoryId);
+    const response = await injectApi({
+      method: 'PATCH',
+      url: `/api/problems/${problemId}`,
+      payload: { status: 'Solved', timesSolved: 4 },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      status: 'Solved',
+      timesSolved: 4,
+      lastReviewedOn: null,
+    });
+  });
+
+  it('rejects duplicate PATCH tag IDs', async () => {
+    const categoryId = await createCategory();
+    const problemId = await createProblem(categoryId);
+    const tagId = await createTag();
+    const response = await injectApi({
+      method: 'PATCH',
+      url: `/api/problems/${problemId}`,
+      payload: { tagIds: [`${tagId}`, `${tagId}`] },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toHaveProperty(
+      'error.code',
+      'DUPLICATE_TAG_IDS',
+    );
+  });
+
+  it('returns not found when patching a missing problem', async () => {
+    const response = await injectApi({
+      method: 'PATCH',
+      url: '/api/problems/9223372036854775807',
+      payload: { name: 'Missing' },
+    });
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toHaveProperty('error.code', 'PROBLEM_NOT_FOUND');
+  });
+
+  it.each(['0', '-1', '01', '1.5', 'abc', '9223372036854775808'])(
+    'rejects malformed problem ID %s',
+    async (id) => {
+      for (const method of ['GET', 'PATCH', 'DELETE'] as const) {
+        const response = await injectApi({
+          method,
+          url: `/api/problems/${id}`,
+          ...(method === 'PATCH' && { payload: { name: 'Valid' } }),
+        });
+        expect(response.statusCode).toBe(400);
+        expect(response.json()).toHaveProperty('error.code', 'INVALID_ID');
+      }
+    },
+  );
+
+  it('deletes only the problem and its join rows', async () => {
+    const categoryId = await createCategory();
+    const problemId = await createProblem(categoryId);
+    const tagId = await createTag();
+    await requireDatabase()
+      .insert(problemTags)
+      .values({ problemId, tagId });
+    const response = await injectApi({
+      method: 'DELETE',
+      url: `/api/problems/${problemId}`,
+    });
+
+    expect(response.statusCode).toBe(204);
+    await expect(requireDatabase().select().from(problems)).resolves.toEqual([]);
+    await expect(requireDatabase().select().from(problemTags)).resolves.toEqual(
+      [],
+    );
+    await expect(
+      requireDatabase().select().from(categories),
+    ).resolves.toHaveLength(1);
+    await expect(requireDatabase().select().from(tags)).resolves.toHaveLength(
+      1,
+    );
+  });
+
+  it('returns not found when deleting a missing problem', async () => {
+    const response = await injectApi({
+      method: 'DELETE',
+      url: '/api/problems/9223372036854775807',
+    });
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toHaveProperty('error.code', 'PROBLEM_NOT_FOUND');
+  });
 });

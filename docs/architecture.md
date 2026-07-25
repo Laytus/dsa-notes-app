@@ -331,6 +331,7 @@ GET    /api/health
 
 GET    /api/problems
 POST   /api/problems
+GET    /api/problems/:id
 PATCH  /api/problems/:id
 DELETE /api/problems/:id
 POST   /api/problems/:id/duplicate
@@ -411,6 +412,29 @@ Category and tag responses apply this rule explicitly. Their database `Date`
 timestamps are serialized as ISO-8601 strings and database field names are
 mapped to camelCase response fields. Route handlers never return raw Drizzle
 records.
+
+Problem responses follow the same representation rules. Collection hydration
+uses one query for problems joined to categories and one query for all relevant
+problem-tag rows joined to tags. Tags are grouped in memory. This avoids N+1
+queries while keeping the Drizzle queries explicit. Problems are ordered by
+case-insensitive name then ID; tags are ordered by case-insensitive name then
+ID.
+
+Problem creation and partial updates run in database transactions. The
+transaction verifies category and tag references, writes the problem, writes or
+replaces join rows, and hydrates the response. Supplying `tagIds` on PATCH
+replaces the complete association set; omitting it preserves associations.
+Invalid related-resource references consistently return `400`.
+
+Problem names, link URLs, and link labels are trimmed at the request boundary;
+Notes are preserved verbatim. Link objects require absolute HTTP or HTTPS URLs.
+Missing labels use `View solution` for Solution and `LeetCode` for Source.
+Absent links use `null`.
+
+`lastReviewedOn` accepts only real calendar dates in exact `YYYY-MM-DD` form
+and is stored without timezone conversion. General CRUD validates and persists
+`timesSolved` independently of status. Automatic review-date mutation remains
+part of the later atomic review-semantics phase.
 
 ## 11. Search, filter, and sorting architecture
 

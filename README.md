@@ -10,11 +10,13 @@ The project has a working monorepo foundation:
 
 - a minimal Angular shell;
 - a Fastify API with health, category, and tag endpoints;
+- complete Problems CRUD endpoints;
 - a committed PostgreSQL schema and migrations;
 - a local PostgreSQL Docker Compose service;
 - workspace-wide validation commands.
 
-Problem endpoints and frontend data integration have not been implemented yet.
+Problem duplication, automatic review-count behavior, and frontend data
+integration have not been implemented yet.
 
 ## Main features planned for the MVP
 
@@ -220,8 +222,7 @@ It returns:
 The health endpoint and API startup do not require PostgreSQL. Category and tag
 requests connect lazily and require `DATABASE_URL` plus an available migrated
 database. The Angular application does not call the API yet, so no development
-proxy or CORS middleware is configured. Problem CRUD endpoints are not yet
-implemented.
+proxy or CORS middleware is configured.
 
 ## Category and tag API
 
@@ -273,6 +274,75 @@ Errors use a stable envelope:
 
 Deleting a referenced category returns `409 Conflict`. Deleting a tag removes
 its problem-tag associations but does not delete problems.
+
+## Problems API
+
+The problem endpoints are:
+
+```text
+GET    /api/problems
+POST   /api/problems
+GET    /api/problems/:id
+PATCH  /api/problems/:id
+DELETE /api/problems/:id
+```
+
+A minimal creation request requires a name and category:
+
+```json
+{
+  "name": "Two Sum",
+  "categoryId": "1"
+}
+```
+
+Optional fields use the documented defaults: `status` is `To solve`,
+`timesSolved` is `0`, `tags` and `notes` are empty, and nullable fields are
+`null`. A complete response includes the category and deterministically sorted
+tags:
+
+```json
+{
+  "id": "12",
+  "name": "Two Sum",
+  "category": {
+    "id": "1",
+    "name": "Arrays"
+  },
+  "difficulty": "Easy",
+  "status": "Solved",
+  "tags": [
+    {
+      "id": "3",
+      "name": "Hash Map"
+    }
+  ],
+  "solution": {
+    "url": "https://example.com/solution",
+    "label": "View solution"
+  },
+  "source": null,
+  "notes": "",
+  "timesSolved": 2,
+  "lastReviewedOn": "2026-07-25",
+  "createdAt": "2026-07-25T18:30:00.000Z",
+  "updatedAt": "2026-07-25T18:30:00.000Z"
+}
+```
+
+All IDs are decimal JSON strings. `difficulty`, `solution`, `source`, and
+`lastReviewedOn` may be `null`; tags are always an array. Dates must be real
+calendar dates in strict `YYYY-MM-DD` form.
+
+Links accept only absolute HTTP or HTTPS URLs. URLs and labels are trimmed.
+When a link label is omitted, Solution uses `View solution` and Source uses
+`LeetCode`. Empty supplied labels are rejected.
+
+`PATCH` uses true partial-update semantics. Supplying `tagIds` replaces the
+complete tag set, while omitted fields remain unchanged. Invalid category or
+tag references return `400` using the stable error envelope. Automatic
+`Times solved`/`Last reviewed` behavior remains deferred to the dedicated
+review-semantics phase.
 
 ## Validation
 
