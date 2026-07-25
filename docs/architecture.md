@@ -352,6 +352,16 @@ API contracts must be validated at runtime.
 
 A shared package may contain schemas or generated types only when it reduces actual duplication without coupling the frontend to database implementation details.
 
+Category and tag routes use Fastify JSON Schema validation at the HTTP
+boundary. Request objects reject unknown fields. Names are trimmed at this
+boundary, whitespace-only names are rejected, and internal whitespace and
+capitalization are preserved. PostgreSQL remains authoritative for
+case-insensitive uniqueness through the committed `lower(name)` indexes.
+
+Path identifiers accept only canonical positive decimal strings within the
+PostgreSQL `bigint` range. They are parsed directly to TypeScript `bigint` and
+are never converted through JavaScript `number`.
+
 ## 10. API response representation
 
 A problem response should be shaped around UI needs without exposing join-table rows.
@@ -396,6 +406,11 @@ The database may use separate URL and label columns even though the API groups t
 Database IDs are TypeScript `bigint` values. Future JSON API contracts must
 serialize them as decimal strings because JSON does not support `bigint` and
 JavaScript numbers cannot safely represent every PostgreSQL `bigint`.
+
+Category and tag responses apply this rule explicitly. Their database `Date`
+timestamps are serialized as ISO-8601 strings and database field names are
+mapped to camelCase response fields. Route handlers never return raw Drizzle
+records.
 
 ## 11. Search, filter, and sorting architecture
 
@@ -502,6 +517,20 @@ API errors must use a consistent structure, for example:
   }
 }
 ```
+
+Validation, not-found, conflict, and internal failures all use this envelope
+with stable application error codes. Expected database conflicts are translated
+only when both the PostgreSQL error code and the known constraint or index name
+match. Wrapped driver errors may be inspected through their `cause` chain.
+Unexpected failures are logged by Fastify and returned as a generic `500`
+without SQL, constraint details, stack traces, connection strings, or driver
+objects.
+
+Category and tag rename operations set `updated_at` explicitly. Deleting a
+referenced category translates the restrictive foreign-key failure to
+`CATEGORY_IN_USE` without modifying problems. Deleting a tag relies on the
+documented database cascade to remove `problem_tags` rows while preserving
+problems.
 
 The frontend must:
 

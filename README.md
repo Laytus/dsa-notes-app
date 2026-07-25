@@ -9,11 +9,12 @@ The application is intended primarily for tracking NeetCode and LeetCode problem
 The project has a working monorepo foundation:
 
 - a minimal Angular shell;
-- a minimal Fastify API with a health endpoint;
+- a Fastify API with health, category, and tag endpoints;
+- a committed PostgreSQL schema and migrations;
 - a local PostgreSQL Docker Compose service;
 - workspace-wide validation commands.
 
-The database schema and application features have not been implemented yet.
+Problem endpoints and frontend data integration have not been implemented yet.
 
 ## Main features planned for the MVP
 
@@ -216,10 +217,62 @@ It returns:
 }
 ```
 
-The health endpoint and API startup do not require PostgreSQL. The Angular
-application does not call the API yet, so no development proxy or CORS
-middleware is configured. Category, tag, and problem CRUD endpoints are not yet
+The health endpoint and API startup do not require PostgreSQL. Category and tag
+requests connect lazily and require `DATABASE_URL` plus an available migrated
+database. The Angular application does not call the API yet, so no development
+proxy or CORS middleware is configured. Problem CRUD endpoints are not yet
 implemented.
+
+## Category and tag API
+
+The reference-data endpoints are:
+
+```text
+GET    /api/categories
+POST   /api/categories
+PATCH  /api/categories/:id
+DELETE /api/categories/:id
+
+GET    /api/tags
+POST   /api/tags
+PATCH  /api/tags/:id
+DELETE /api/tags/:id
+```
+
+Create or rename a resource with a JSON body:
+
+```json
+{
+  "name": "Dynamic Programming"
+}
+```
+
+Leading and trailing whitespace is removed. Unknown fields, empty names, and
+invalid IDs are rejected. Collection responses are sorted case-insensitively.
+IDs are decimal strings in JSON, and timestamps are ISO-8601 strings:
+
+```json
+{
+  "id": "1",
+  "name": "Dynamic Programming",
+  "createdAt": "2026-07-25T18:30:00.000Z",
+  "updatedAt": "2026-07-25T18:30:00.000Z"
+}
+```
+
+Errors use a stable envelope:
+
+```json
+{
+  "error": {
+    "code": "CATEGORY_NAME_CONFLICT",
+    "message": "A category with this name already exists."
+  }
+}
+```
+
+Deleting a referenced category returns `409 Conflict`. Deleting a tag removes
+its problem-tag associations but does not delete problems.
 
 ## Validation
 
@@ -230,6 +283,19 @@ pnpm lint
 pnpm typecheck
 pnpm test
 pnpm build
+```
+
+Run API unit tests without PostgreSQL:
+
+```bash
+pnpm --filter @dsa-notes/api test
+```
+
+With PostgreSQL running and the environment loaded, run the isolated
+PostgreSQL-backed schema and HTTP integration tests:
+
+```bash
+pnpm test:db
 ```
 
 Run the complete validation sequence:
