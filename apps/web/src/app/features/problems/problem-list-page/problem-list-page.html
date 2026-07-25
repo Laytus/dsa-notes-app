@@ -1,0 +1,38 @@
+<section aria-labelledby="problems-title">
+  <div class="section-heading">
+    <div>
+      <p class="section-kicker">Problem library</p>
+      <h2 id="problems-title">Problems</h2>
+    </div>
+
+    @if (!loading() && !error() && problems().length > 0) {
+      <p class="problem-count">
+        {{ problems().length }} {{ problems().length === 1 ? 'problem' : 'problems' }}
+      </p>
+    }
+  </div>
+
+  @if (loading()) {
+    <div class="state-card" role="status">
+      <span class="loading-dot" aria-hidden="true"></span>
+      Loading problems…
+    </div>
+  } @else if (error()) {
+    <div class="state-card error-state" role="alert">
+      <p>{{ error() }}</p>
+      <button type="button" (click)="load()">Try again</button>
+    </div>
+  } @else {
+    @if (warning()) {
+      <p class="warning" role="status">{{ warning() }}</p>
+    }
+
+    @if (problems().length === 0) {
+      <div class="state-card empty-state">
+        <p>No problems have been added yet.</p>
+      </div>
+    } @else {
+      <app-problem-table [problems]="problems()" />
+    }
+  }
+</section>

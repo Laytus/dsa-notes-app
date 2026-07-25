@@ -8,15 +8,15 @@ The application is intended primarily for tracking NeetCode and LeetCode problem
 
 The project has a working monorepo foundation:
 
-- a minimal Angular shell;
+- an Angular read-only Problems screen backed by the API;
 - a Fastify API with health, category, and tag endpoints;
 - complete Problems CRUD endpoints;
 - a committed PostgreSQL schema and migrations;
 - a local PostgreSQL Docker Compose service;
 - workspace-wide validation commands.
 
-Problem duplication, automatic review-count behavior, and frontend data
-integration have not been implemented yet.
+Problem duplication, automatic review-count behavior, and frontend mutations
+have not been implemented yet.
 
 ## Main features planned for the MVP
 
@@ -221,8 +221,11 @@ It returns:
 
 The health endpoint and API startup do not require PostgreSQL. Category and tag
 requests connect lazily and require `DATABASE_URL` plus an available migrated
-database. The Angular application does not call the API yet, so no development
-proxy or CORS middleware is configured.
+database.
+
+The Angular development server proxies relative `/api` requests to
+`http://localhost:3000`. Start the API and frontend through the documented
+commands; no CORS middleware or production hostname is required.
 
 ## Category and tag API
 
@@ -344,6 +347,23 @@ tag references return `400` using the stable error envelope. Automatic
 `Times solved`/`Last reviewed` behavior remains deferred to the dedicated
 review-semantics phase.
 
+## Read-only Problems screen
+
+The Angular screen loads Problems, Categories, and Tags once on initial page
+load. Problems are the primary request. A Problems failure shows a page-level
+error with an explicit retry; a Categories or Tags failure shows a nonblocking
+warning while retaining a successfully loaded Problems table.
+
+The semantic table displays the fixed MVP preview columns and supports
+independent expansion of multiple rows. Expanded rows show plain-text Notes and
+UTC creation/update timestamps. Notes are not parsed as Markdown. Date-only
+`lastReviewedOn` values are displayed exactly as returned by the API, avoiding
+timezone conversion.
+
+Solution and Source use the API-provided labels and URLs, open in a new tab,
+and include safe `rel` attributes. The screen remains read-only: creation,
+editing, deletion, search, filtering, and review actions are not implemented.
+
 ## Validation
 
 Run individual workspace checks:
@@ -359,6 +379,12 @@ Run API unit tests without PostgreSQL:
 
 ```bash
 pnpm --filter @dsa-notes/api test
+```
+
+Run Angular service and component tests without a live API or PostgreSQL:
+
+```bash
+pnpm --filter @dsa-notes/web test
 ```
 
 With PostgreSQL running and the environment loaded, run the isolated

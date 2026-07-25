@@ -27,6 +27,28 @@ Angular is used because:
 
 The frontend should use standalone Angular APIs unless the selected Angular version provides a compelling reason otherwise.
 
+The first read-only integration defines explicit Angular contract types matching
+the Fastify JSON responses. Problem, category, and tag IDs remain strings in
+the browser; they are never converted to `number` or `bigint`. Three focused
+`HttpClient` services use relative `/api/problems`, `/api/categories`, and
+`/api/tags` URLs without a generic SDK layer.
+
+The Problems page owns local signal state for the three collections, loading,
+error, and auxiliary-warning states. Problems are the primary request. Failed
+category or tag requests produce a nonblocking warning rather than discarding
+successfully loaded problems. No global state library is justified at this
+stage.
+
+The read-only page consumes the API-hydrated category and tag representations
+directly. It does not reconstruct relationships or reorder tags. Date-only
+`lastReviewedOn` values are rendered exactly as `YYYY-MM-DD`, without creating
+a JavaScript `Date`, so local timezone offsets cannot shift the calendar day.
+Technical timestamps are rendered deterministically in UTC.
+
+During development, Angular proxies `/api` to the Fastify server at
+`http://localhost:3000`. Production hostnames are not embedded in frontend
+code, and development-only CORS middleware is unnecessary.
+
 ### Backend: Node.js, TypeScript, and Fastify
 
 Fastify is used for a minimal HTTP API because:
