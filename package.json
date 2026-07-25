@@ -1,0 +1,21 @@
+{
+  "name": "dsa-notes",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local web application for storing and reviewing DSA problem notes.",
+  "engines": {
+    "node": ">=24.15.0 <25",
+    "pnpm": "10.32.1"
+  },
+  "packageManager": "pnpm@10.32.1",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @dsa-notes/api --filter @dsa-notes/web dev",
+    "dev:api": "pnpm --filter @dsa-notes/api dev",
+    "dev:web": "pnpm --filter @dsa-notes/web dev",
+    "lint": "pnpm --filter @dsa-notes/api --filter @dsa-notes/web lint",
+    "typecheck": "pnpm --filter @dsa-notes/api --filter @dsa-notes/web typecheck",
+    "test": "pnpm --filter @dsa-notes/api --filter @dsa-notes/web test",
+    "build": "pnpm --filter @dsa-notes/api --filter @dsa-notes/web build",
+    "validate": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+  }
+}
