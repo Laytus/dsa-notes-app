@@ -83,6 +83,7 @@
               [attr.aria-label]="'Edit ' + problem.name"
               [attr.aria-describedby]="
                 editableIds().has(problem.id) &&
+                !duplicatingIds().has(problem.id) &&
                 !deletingIds().has(problem.id) &&
                 !reviewingIds().has(problem.id)
                   ? null
@@ -90,6 +91,7 @@
               "
               [disabled]="
                 !editableIds().has(problem.id) ||
+                duplicatingIds().has(problem.id) ||
                 deletingIds().has(problem.id) ||
                 reviewingIds().has(problem.id)
               "
@@ -99,6 +101,7 @@
             </button>
             @if (
               !editableIds().has(problem.id) ||
+                duplicatingIds().has(problem.id) ||
                 deletingIds().has(problem.id) ||
                 reviewingIds().has(problem.id)
             ) {
@@ -107,13 +110,59 @@
                 [id]="'edit-unavailable-' + problem.id"
               >
                 {{
-                  deletingIds().has(problem.id)
+                  duplicatingIds().has(problem.id)
+                    ? 'Editing is unavailable while this problem is being duplicated.'
+                    : deletingIds().has(problem.id)
                     ? 'Editing is unavailable while this problem is being deleted.'
                     : reviewingIds().has(problem.id)
                       ? 'Editing is unavailable while this problem is being reviewed.'
                       : 'Editing is unavailable because the current category is not loaded.'
                 }}
               </span>
+            }
+            <button
+              #duplicateButton
+              type="button"
+              class="duplicate-button"
+              [attr.data-problem-id]="problem.id"
+              [attr.aria-label]="'Duplicate ' + problem.name"
+              [attr.aria-describedby]="
+                duplicateErrors().has(problem.id)
+                  ? 'duplicate-error-' + problem.id
+                  : duplicateDisabledIds().has(problem.id)
+                    ? 'duplicate-disabled-' + problem.id
+                    : null
+              "
+              [disabled]="
+                duplicatingIds().has(problem.id) ||
+                deletingIds().has(problem.id) ||
+                reviewingIds().has(problem.id) ||
+                duplicateDisabledIds().has(problem.id)
+              "
+              (click)="duplicateRequested.emit(problem)"
+            >
+              {{
+                duplicatingIds().has(problem.id)
+                  ? 'Duplicating…'
+                  : 'Duplicate'
+              }}
+            </button>
+            @if (duplicateDisabledIds().has(problem.id)) {
+              <span
+                class="visually-hidden"
+                [id]="'duplicate-disabled-' + problem.id"
+              >
+                Duplication is unavailable while this problem is open for editing.
+              </span>
+            }
+            @if (duplicateErrors().get(problem.id); as duplicateError) {
+              <p
+                class="action-error"
+                [id]="'duplicate-error-' + problem.id"
+                role="alert"
+              >
+                {{ duplicateError }}
+              </p>
             }
             <button
               type="button"
@@ -128,6 +177,7 @@
               "
               [disabled]="
                 reviewingIds().has(problem.id) ||
+                duplicatingIds().has(problem.id) ||
                 deletingIds().has(problem.id) ||
                 reviewDisabledReasons().has(problem.id)
               "
@@ -163,6 +213,7 @@
               "
               [disabled]="
                 deletingIds().has(problem.id) || reviewingIds().has(problem.id)
+                || duplicatingIds().has(problem.id)
               "
               (click)="deleteRequested.emit(problem)"
             >

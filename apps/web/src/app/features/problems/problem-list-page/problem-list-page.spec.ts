@@ -84,6 +84,8 @@ describe('ProblemListPage', () => {
   let getTags: ReturnType<typeof vi.fn>;
   let createProblem: ReturnType<typeof vi.fn>;
   let updateProblem: ReturnType<typeof vi.fn>;
+  let duplicateResponse: Subject<Problem>;
+  let duplicateProblem: ReturnType<typeof vi.fn>;
   let deleteResponse: Subject<void>;
   let deleteProblem: ReturnType<typeof vi.fn>;
 
@@ -98,6 +100,8 @@ describe('ProblemListPage', () => {
     getTags = vi.fn((): Observable<readonly TagResource[]> => tagsSubject);
     createProblem = vi.fn(() => of(problem));
     updateProblem = vi.fn(() => of(problem));
+    duplicateResponse = new Subject();
+    duplicateProblem = vi.fn(() => duplicateResponse);
     deleteResponse = new Subject();
     deleteProblem = vi.fn(() => deleteResponse);
 
@@ -110,6 +114,7 @@ describe('ProblemListPage', () => {
             getProblems,
             createProblem,
             updateProblem,
+            duplicateProblem,
             deleteProblem,
           },
         },
@@ -1567,5 +1572,304 @@ describe('ProblemListPage', () => {
     expect(editPanel.form.controls.notes.value).toBe('Unsaved edit');
     expect(confirm).not.toHaveBeenCalled();
     confirm.mockRestore();
+  });
+
+  it('sends one exact large-ID duplication request and isolates pending state', () => {
+    const source: Problem = {
+      ...dynamicProblem,
+      id: '9007199254740993',
+    };
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completeLoadedPage([source, problem]);
+    fixture.detectChanges();
+    const confirm = vi.spyOn(window, 'confirm');
+    const sourceRow = fixture.nativeElement.querySelector(
+      `[data-problem-id="${source.id}"]`,
+    ) as HTMLTableRowElement;
+    const duplicate = sourceRow.querySelector(
+      '.duplicate-button',
+    ) as HTMLButtonElement;
+
+    duplicate.click();
+    fixture.detectChanges();
+    fixture.componentInstance.requestDuplicate(source);
+
+    expect(duplicateProblem).toHaveBeenCalledTimes(1);
+    expect(duplicateProblem).toHaveBeenCalledWith('9007199254740993');
+    expect(confirm).not.toHaveBeenCalled();
+    expect(duplicate.disabled).toBe(true);
+    expect(duplicate.textContent).toContain('Duplicating');
+    expect(
+      (sourceRow.querySelector('.edit-button') as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(
+      (sourceRow.querySelector('.review-button') as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(
+      (sourceRow.querySelector('.delete-button') as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(
+      (
+        fixture.nativeElement.querySelector(
+          '[data-problem-id="1"] .duplicate-button',
+        ) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
+    confirm.mockRestore();
+  });
+
+  it('inserts the hydrated duplicate once, reapplies exact sorting, and preserves expansion and focus', async () => {
+    const source: Problem = {
+      ...problem,
+      id: '9007199254740993',
+      name: 'Same',
+    };
+    const existingCopy: Problem = {
+      ...problem,
+      id: '2',
+      name: 'same copy',
+    };
+    const hydratedDuplicate: Problem = {
+      ...source,
+      id: '10',
+      name: 'Same Copy',
+      notes: 'Returned by the API',
+      createdAt: '2026-07-26T03:00:00.000Z',
+      updatedAt: '2026-07-26T03:00:00.000Z',
+    };
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completeLoadedPage([source, existingCopy]);
+    fixture.detectChanges();
+    const table = fixture.debugElement.query(
+      By.directive(ProblemTable),
+    ).componentInstance as ProblemTable;
+    table.toggle(source.id);
+    table.toggle(existingCopy.id);
+    fixture.detectChanges();
+    const duplicateButton = fixture.nativeElement.querySelector(
+      `[data-problem-id="${source.id}"] .duplicate-button`,
+    ) as HTMLButtonElement;
+    duplicateButton.focus();
+    duplicateButton.click();
+
+    duplicateResponse.next(hydratedDuplicate);
+    duplicateResponse.complete();
+    fixture.detectChanges();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.problems()).toEqual([
+      source,
+      existingCopy,
+      hydratedDuplicate,
+    ]);
+    expect(
+      fixture.componentInstance.problems().filter(({ id }) => id === '10'),
+    ).toEqual([hydratedDuplicate]);
+    expect(fixture.componentInstance.problems()).toContain(source);
+    expect(getProblems).toHaveBeenCalledTimes(1);
+    expect(getCategories).toHaveBeenCalledTimes(1);
+    expect(getTags).toHaveBeenCalledTimes(1);
+    expect(table.isExpanded(source.id)).toBe(true);
+    expect(table.isExpanded(existingCopy.id)).toBe(true);
+    expect(table.isExpanded(hydratedDuplicate.id)).toBe(false);
+    expect(document.activeElement?.getAttribute('aria-label')).toBe(
+      'Duplicate Same',
+    );
+  });
+
+  it('derives duplicate visibility and counts from active filters without resetting them', () => {
+    const matchingDuplicate: Problem = {
+      ...dynamicProblem,
+      id: '3',
+      name: 'House Robber Copy',
+    };
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completeLoadedPage();
+    fixture.detectChanges();
+    fixture.componentInstance.selectedCategoryId.set('2');
+    fixture.componentInstance.selectedTagIds.set(['10']);
+    fixture.detectChanges();
+
+    fixture.componentInstance.requestDuplicate(dynamicProblem);
+    duplicateResponse.next(matchingDuplicate);
+    duplicateResponse.complete();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.problems()).toHaveLength(3);
+    expect(fixture.componentInstance.filteredProblems()).toEqual([
+      dynamicProblem,
+      matchingDuplicate,
+    ]);
+    expect(fixture.componentInstance.selectedCategoryId()).toBe('2');
+    expect(fixture.componentInstance.selectedTagIds()).toEqual(['10']);
+    expect(fixture.nativeElement.textContent).toContain('2 of 3 problems');
+    expect(getProblems).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a duplicate canonical but hidden when its source does not match active filters', () => {
+    const hiddenDuplicate: Problem = {
+      ...problem,
+      id: '3',
+      name: 'Two Sum Copy',
+    };
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completeLoadedPage();
+    fixture.detectChanges();
+    fixture.componentInstance.selectedCategoryId.set('2');
+
+    fixture.componentInstance.requestDuplicate(problem);
+    duplicateResponse.next(hiddenDuplicate);
+    duplicateResponse.complete();
+
+    expect(fixture.componentInstance.problems()).toContainEqual(
+      hiddenDuplicate,
+    );
+    expect(fixture.componentInstance.filteredProblems()).toEqual([
+      dynamicProblem,
+    ]);
+    expect(fixture.componentInstance.selectedCategoryId()).toBe('2');
+  });
+
+  it('blocks duplication for the actively edited source but allows another problem', () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completeLoadedPage();
+    fixture.detectChanges();
+    fixture.componentInstance.openEditPanel(problem);
+    fixture.detectChanges();
+
+    const sourceDuplicate = fixture.nativeElement.querySelector(
+      '[data-problem-id="1"] .duplicate-button',
+    ) as HTMLButtonElement;
+    const otherDuplicate = fixture.nativeElement.querySelector(
+      `[data-problem-id="${dynamicProblem.id}"] .duplicate-button`,
+    ) as HTMLButtonElement;
+    expect(sourceDuplicate.disabled).toBe(true);
+    expect(otherDuplicate.disabled).toBe(false);
+
+    fixture.componentInstance.requestDuplicate(problem);
+    expect(duplicateProblem).not.toHaveBeenCalled();
+    otherDuplicate.click();
+    expect(duplicateProblem).toHaveBeenCalledWith(dynamicProblem.id);
+  });
+
+  it('preserves dirty Create and unrelated Edit state without discard confirmation', () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completeLoadedPage();
+    fixture.detectChanges();
+    fixture.componentInstance.openCreatePanel();
+    fixture.detectChanges();
+    const createPanel = fixture.debugElement.query(
+      By.directive(ProblemFormPanel),
+    ).componentInstance as ProblemFormPanel;
+    createPanel.form.controls.name.setValue('Unsaved create');
+    createPanel.form.controls.name.markAsDirty();
+    const confirm = vi.spyOn(window, 'confirm');
+
+    fixture.componentInstance.requestDuplicate(problem);
+    expect(fixture.componentInstance.activePanel()?.mode).toBe('create');
+    expect(createPanel.form.controls.name.value).toBe('Unsaved create');
+    expect(confirm).not.toHaveBeenCalled();
+
+    fixture.componentInstance.activePanel.set({
+      mode: 'edit',
+      problem: dynamicProblem,
+    });
+    fixture.detectChanges();
+    const editPanel = fixture.debugElement.query(
+      By.directive(ProblemFormPanel),
+    ).componentInstance as ProblemFormPanel;
+    editPanel.form.controls.notes.setValue('Unsaved edit');
+    editPanel.form.controls.notes.markAsDirty();
+    fixture.componentInstance.requestDuplicate(problem);
+
+    expect(fixture.componentInstance.activePanel()).toEqual({
+      mode: 'edit',
+      problem: dynamicProblem,
+    });
+    expect(editPanel.form.controls.notes.value).toBe('Unsaved edit');
+    expect(confirm).not.toHaveBeenCalled();
+    confirm.mockRestore();
+  });
+
+  it.each([
+    [
+      new HttpErrorResponse({
+        status: 404,
+        error: { error: { code: 'PROBLEM_NOT_FOUND', message: 'raw secret' } },
+      }),
+      'This problem no longer exists on the server.',
+    ],
+    [
+      new HttpErrorResponse({
+        status: 400,
+        error: {
+          error: { code: 'INVALID_PROBLEM_NAME', message: 'raw validation' },
+        },
+      }),
+      'The duplicate name or source values are invalid.',
+    ],
+    [
+      new HttpErrorResponse({ status: 0, statusText: 'Network Error' }),
+      'Could not connect to the API.',
+    ],
+    [new Error('database secret'), 'The problem could not be duplicated.'],
+  ])('preserves state and shows a safe duplication failure for %s', (failure, message) => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completeLoadedPage();
+    fixture.detectChanges();
+    const table = fixture.debugElement.query(
+      By.directive(ProblemTable),
+    ).componentInstance as ProblemTable;
+    table.toggle(problem.id);
+    fixture.detectChanges();
+    const canonical = fixture.componentInstance.problems();
+
+    fixture.componentInstance.requestDuplicate(problem);
+    duplicateResponse.error(failure);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.problems()).toBe(canonical);
+    expect(fixture.componentInstance.duplicatingIds().has(problem.id)).toBe(
+      false,
+    );
+    expect(table.isExpanded(problem.id)).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain(message);
+    expect(fixture.nativeElement.textContent).not.toContain('raw secret');
+    expect(fixture.nativeElement.textContent).not.toContain('raw validation');
+    expect(fixture.nativeElement.textContent).not.toContain('database secret');
+  });
+
+  it('clears an old duplication error when retry succeeds', () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completeLoadedPage();
+    fixture.detectChanges();
+    const firstResponse = duplicateResponse;
+
+    fixture.componentInstance.requestDuplicate(problem);
+    firstResponse.error(
+      new HttpErrorResponse({ status: 500, statusText: 'Server Error' }),
+    );
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain(
+      'The problem could not be duplicated.',
+    );
+
+    duplicateResponse = new Subject();
+    const duplicate: Problem = {
+      ...problem,
+      id: '3',
+      name: 'Two Sum Copy',
+    };
+    fixture.componentInstance.requestDuplicate(problem);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).not.toContain(
+      'The problem could not be duplicated.',
+    );
+    duplicateResponse.next(duplicate);
+    duplicateResponse.complete();
+
+    expect(duplicateProblem).toHaveBeenCalledTimes(2);
+    expect(fixture.componentInstance.problems()).toContainEqual(duplicate);
   });
 });

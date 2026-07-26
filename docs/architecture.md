@@ -125,6 +125,30 @@ immutable comparator-backed path used by Edit. ID-based Angular tracking keeps
 row expansion and Review-button focus stable. Review failures remain local to
 their row in an accessible live alert and never mutate the canonical Problem.
 
+Problem duplication uses the explicit
+`POST /api/problems/:id/duplicate` endpoint without a request body. One database
+transaction locks and loads the persisted source, reads its Tag associations,
+inserts a new Problem with every user-facing value copied, copies the join rows,
+and hydrates the new representation. The database allocates a new identity and
+fresh timestamps. The name is `${sourceName} Copy`; existing suffixes are not
+replaced or numbered. Problem names remain unbounded PostgreSQL `text`, so no
+arbitrary frontend or API length limit is introduced and no truncation occurs.
+
+The Problems page owns immutable per-Problem duplication IDs and duplication
+error maps separately from Delete and Review state. Pending duplication disables
+Duplicate, Edit, Review, and Delete for the source row only. Duplication is also
+disabled for a Problem currently open in Edit, ensuring the API copies persisted
+state rather than unsaved form values. Dirty Create state and an editor for
+another Problem are unaffected and no discard confirmation is used.
+
+The hydrated duplicate is inserted into canonical state and the established
+case-insensitive name/exact decimal-ID comparator is reapplied. Filtered
+visibility remains entirely derived from canonical state and active filters;
+no Problem, Category, or Tag collection is reloaded. Existing expansion IDs
+remain unchanged, the duplicate starts collapsed, and focus returns to the
+source Duplicate button after success. Failures are announced in a row-owned
+accessible alert and do not mutate canonical, filter, expansion, or form state.
+
 ### Backend: Node.js, TypeScript, and Fastify
 
 Fastify is used for a minimal HTTP API because:

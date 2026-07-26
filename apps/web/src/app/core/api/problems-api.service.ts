@@ -26,6 +26,10 @@ export class ProblemsApiService {
     return this.http.patch<Problem>(`/api/problems/${id}`, request);
   }
 
+  duplicateProblem(id: string): Observable<Problem> {
+    return this.http.post<Problem>(`/api/problems/${id}/duplicate`, null);
+  }
+
   deleteProblem(id: string): Observable<void> {
     return this.http.delete<void>(`/api/problems/${id}`);
   }

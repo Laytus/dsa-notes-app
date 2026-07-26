@@ -227,6 +227,64 @@ describe('ProblemTable', () => {
     expect(emitted).toHaveBeenCalledWith(completeProblem);
   });
 
+  it('exposes a native accessible Duplicate action without changing expansion', () => {
+    const fixture = createFixture();
+    const component = fixture.componentInstance;
+    const duplicate = fixture.nativeElement.querySelector(
+      '.duplicate-button',
+    ) as HTMLButtonElement;
+
+    expect(duplicate.tagName).toBe('BUTTON');
+    expect(duplicate.getAttribute('aria-label')).toBe('Duplicate Two Sum');
+    duplicate.click();
+
+    expect(component.isExpanded(completeProblem.id)).toBe(false);
+  });
+
+  it('isolates duplication pending, errors, and same-row action disabling', () => {
+    const fixture = createFixture([completeProblem, nullableProblem]);
+    fixture.componentRef.setInput(
+      'duplicatingIds',
+      new Set([completeProblem.id]),
+    );
+    fixture.componentRef.setInput(
+      'duplicateErrors',
+      new Map([[completeProblem.id, 'The problem could not be duplicated.']]),
+    );
+    fixture.detectChanges();
+
+    const sourceRow = fixture.nativeElement.querySelector(
+      '[data-problem-id="12"]',
+    ) as HTMLTableRowElement;
+    const otherRow = fixture.nativeElement.querySelector(
+      '[data-problem-id="13"]',
+    ) as HTMLTableRowElement;
+    expect(
+      (sourceRow.querySelector('.duplicate-button') as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    expect(sourceRow.textContent).toContain('Duplicating');
+    expect(
+      (sourceRow.querySelector('.edit-button') as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(
+      (sourceRow.querySelector('.review-button') as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(
+      (sourceRow.querySelector('.delete-button') as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(sourceRow.querySelector('[role="alert"]')?.textContent).toContain(
+      'could not be duplicated',
+    );
+    expect(
+      (otherRow.querySelector('.duplicate-button') as HTMLButtonElement)
+        .disabled,
+    ).toBe(false);
+    expect(
+      (otherRow.querySelector('.edit-button') as HTMLButtonElement).disabled,
+    ).toBe(false);
+  });
+
   it('disables only the pending row actions and announces its delete error', () => {
     const fixture = createFixture([completeProblem, nullableProblem]);
     fixture.componentRef.setInput('deletingIds', new Set(['12']));

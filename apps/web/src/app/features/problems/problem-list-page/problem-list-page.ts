@@ -86,6 +86,8 @@ export class ProblemListPage {
   readonly selectedTagIds = signal<readonly string[]>([]);
   readonly activePanel = signal<ActivePanel | null>(null);
   readonly successMessage = signal<string | null>(null);
+  readonly duplicatingIds = signal<ReadonlySet<string>>(new Set());
+  readonly duplicateErrors = signal<ReadonlyMap<string, string>>(new Map());
   readonly deletingIds = signal<ReadonlySet<string>>(new Set());
   readonly deleteErrors = signal<ReadonlyMap<string, string>>(new Map());
   readonly reviewingIds = signal<ReadonlySet<string>>(new Set());
@@ -117,6 +119,10 @@ export class ProblemListPage {
       filters.status !== null ||
       filters.tagIds.length > 0
     );
+  });
+  readonly duplicateDisabledIds = computed<ReadonlySet<string>>(() => {
+    const active = this.activePanel();
+    return active?.mode === 'edit' ? new Set([active.problem.id]) : new Set();
   });
   readonly canCreate = computed(
     () =>
@@ -295,6 +301,7 @@ export class ProblemListPage {
 
   openEditPanel(problem: Problem): void {
     if (!this.editableIds().has(problem.id)) return;
+    if (this.duplicatingIds().has(problem.id)) return;
     if (this.reviewingIds().has(problem.id)) return;
     const active = this.activePanel();
     if (active?.mode === 'edit' && active.problem.id === problem.id) return;
@@ -318,11 +325,7 @@ export class ProblemListPage {
   onProblemSaved(problem: Problem): void {
     const mode = this.activePanel()?.mode;
     if (mode === 'edit') this.replaceProblem(problem);
-    else {
-      this.problems.update((current) =>
-        [...current, problem].sort(compareProblems),
-      );
-    }
+    else this.insertProblem(problem);
     this.successMessage.set(
       mode === 'edit'
         ? `${problem.name} was updated.`
@@ -333,6 +336,7 @@ export class ProblemListPage {
 
   requestDelete(problem: Problem): void {
     if (this.deletingIds().has(problem.id)) return;
+    if (this.duplicatingIds().has(problem.id)) return;
     if (this.reviewingIds().has(problem.id)) return;
 
     const active = this.activePanel();
@@ -387,6 +391,7 @@ export class ProblemListPage {
   requestReview(problem: Problem): void {
     if (
       this.reviewingIds().has(problem.id) ||
+      this.duplicatingIds().has(problem.id) ||
       this.deletingIds().has(problem.id) ||
       this.reviewDisabledReasons().has(problem.id)
     ) {
@@ -412,6 +417,41 @@ export class ProblemListPage {
           this.reviewErrors.update((current) => {
             const next = new Map(current);
             next.set(problem.id, this.reviewErrorMessage(error));
+            return next;
+          });
+        },
+      });
+  }
+
+  requestDuplicate(problem: Problem): void {
+    if (
+      this.duplicatingIds().has(problem.id) ||
+      this.deletingIds().has(problem.id) ||
+      this.reviewingIds().has(problem.id) ||
+      this.duplicateDisabledIds().has(problem.id)
+    ) {
+      return;
+    }
+
+    this.clearDuplicateError(problem.id);
+    this.duplicatingIds.update((current) => new Set(current).add(problem.id));
+    this.problemsApi
+      .duplicateProblem(problem.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (duplicate) => {
+          this.clearDuplicating(problem.id);
+          this.insertProblem(duplicate);
+          this.successMessage.set(`${problem.name} was duplicated.`);
+          queueMicrotask(() =>
+            this.problemTable()?.focusDuplicateButton(problem.id),
+          );
+        },
+        error: (error: unknown) => {
+          this.clearDuplicating(problem.id);
+          this.duplicateErrors.update((current) => {
+            const next = new Map(current);
+            next.set(problem.id, this.duplicateErrorMessage(error));
             return next;
           });
         },
@@ -460,6 +500,22 @@ export class ProblemListPage {
     });
   }
 
+  private clearDuplicating(id: string): void {
+    this.duplicatingIds.update((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
+  }
+
+  private clearDuplicateError(id: string): void {
+    this.duplicateErrors.update((current) => {
+      const next = new Map(current);
+      next.delete(id);
+      return next;
+    });
+  }
+
   private clearDeleteError(id: string): void {
     this.deleteErrors.update((current) => {
       const next = new Map(current);
@@ -492,6 +548,12 @@ export class ProblemListPage {
     );
   }
 
+  private insertProblem(problem: Problem): void {
+    this.problems.update((current) =>
+      [...current, problem].sort(compareProblems),
+    );
+  }
+
   private deleteErrorMessage(error: unknown): string {
     if (error instanceof HttpErrorResponse) {
       if (error.status === 0) {
@@ -502,6 +564,21 @@ export class ProblemListPage {
       }
     }
     return 'The problem could not be deleted. Try again.';
+  }
+
+  private duplicateErrorMessage(error: unknown): string {
+    if (error instanceof HttpErrorResponse) {
+      if (error.status === 0) {
+        return 'Could not connect to the API. The problem was not duplicated.';
+      }
+      if (error.status === 404) {
+        return 'This problem no longer exists on the server. Refresh or try again.';
+      }
+      if (error.status === 400) {
+        return 'The duplicate name or source values are invalid.';
+      }
+    }
+    return 'The problem could not be duplicated. Try again.';
   }
 
   private reviewErrorMessage(error: unknown): string {

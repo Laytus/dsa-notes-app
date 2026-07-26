@@ -228,6 +228,48 @@ describe('API services', () => {
     await expect(result).rejects.toMatchObject({ status: 404 });
   });
 
+  it('duplicates using the exact large string ID without a request body', async () => {
+    const service = TestBed.inject(ProblemsApiService);
+    const id = '9007199254740993';
+    const response: Problem = {
+      id: '9007199254740994',
+      name: 'Two Sum Copy',
+      category: { id: '1', name: 'Arrays' },
+      difficulty: 'Easy',
+      status: 'Solved',
+      tags: [{ id: '2', name: 'Hash Map' }],
+      solution: null,
+      source: null,
+      notes: '',
+      timesSolved: 2,
+      lastReviewedOn: '2026-07-25',
+      createdAt: '2026-07-26T03:00:00.000Z',
+      updatedAt: '2026-07-26T03:00:00.000Z',
+    };
+
+    const result = firstValueFrom(service.duplicateProblem(id));
+    const request = httpTesting.expectOne(
+      `/api/problems/${id}/duplicate`,
+    );
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toBeNull();
+    request.flush(response, { status: 201, statusText: 'Created' });
+
+    await expect(result).resolves.toEqual(response);
+  });
+
+  it('propagates duplication failures', async () => {
+    const service = TestBed.inject(ProblemsApiService);
+    const result = firstValueFrom(service.duplicateProblem('1'));
+    const request = httpTesting.expectOne('/api/problems/1/duplicate');
+    request.flush(
+      { error: { code: 'PROBLEM_NOT_FOUND', message: 'Missing' } },
+      { status: 404, statusText: 'Not Found' },
+    );
+
+    await expect(result).rejects.toMatchObject({ status: 404 });
+  });
+
   it('deletes using the exact string ID beyond the safe integer range', async () => {
     const service = TestBed.inject(ProblemsApiService);
     const id = '9007199254740993';

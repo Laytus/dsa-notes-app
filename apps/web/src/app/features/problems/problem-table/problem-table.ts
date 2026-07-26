@@ -18,6 +18,9 @@ import type { Problem } from '../../../core/api/api.models';
 export class ProblemTable {
   readonly problems = input.required<readonly Problem[]>();
   readonly editableIds = input<ReadonlySet<string>>(new Set());
+  readonly duplicatingIds = input<ReadonlySet<string>>(new Set());
+  readonly duplicateErrors = input<ReadonlyMap<string, string>>(new Map());
+  readonly duplicateDisabledIds = input<ReadonlySet<string>>(new Set());
   readonly deletingIds = input<ReadonlySet<string>>(new Set());
   readonly deleteErrors = input<ReadonlyMap<string, string>>(new Map());
   readonly reviewingIds = input<ReadonlySet<string>>(new Set());
@@ -26,11 +29,14 @@ export class ProblemTable {
     new Map(),
   );
   readonly editRequested = output<Problem>();
+  readonly duplicateRequested = output<Problem>();
   readonly deleteRequested = output<Problem>();
   readonly reviewRequested = output<Problem>();
   readonly expandedIds = signal<ReadonlySet<string>>(new Set());
   private readonly editButtons =
     viewChildren<ElementRef<HTMLButtonElement>>('editButton');
+  private readonly duplicateButtons =
+    viewChildren<ElementRef<HTMLButtonElement>>('duplicateButton');
 
   isExpanded(id: string): boolean {
     return this.expandedIds().has(id);
@@ -52,6 +58,12 @@ export class ProblemTable {
 
   focusEditButton(id: string): void {
     this.editButtons()
+      .find(({ nativeElement }) => nativeElement.dataset['problemId'] === id)
+      ?.nativeElement.focus();
+  }
+
+  focusDuplicateButton(id: string): void {
+    this.duplicateButtons()
       .find(({ nativeElement }) => nativeElement.dataset['problemId'] === id)
       ?.nativeElement.focus();
   }

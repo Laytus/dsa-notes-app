@@ -5,6 +5,7 @@ import {
   parseProblemBody,
   parseStrictDate,
 } from '../src/http/problem-validation.js';
+import { duplicateProblemName } from '../src/routes/problems.js';
 
 describe('problem request helpers', () => {
   it.each([
@@ -86,6 +87,14 @@ describe('problem request helpers', () => {
       });
     },
   );
+
+  it('appends the copy suffix without replacing an existing suffix or truncating', () => {
+    expect(duplicateProblemName('Two Sum')).toBe('Two Sum Copy');
+    expect(duplicateProblemName('Two Sum Copy')).toBe('Two Sum Copy Copy');
+
+    const longName = 'A'.repeat(10_000);
+    expect(duplicateProblemName(longName)).toBe(`${longName} Copy`);
+  });
 });
 
 describe('problem serialization', () => {

@@ -56,6 +56,10 @@ function parseProblemId(id: string): bigint | null {
   }
 }
 
+export function duplicateProblemName(name: string): string {
+  return `${name} Copy`;
+}
+
 async function verifyReferences(
   database: Pick<Database, 'select'>,
   input: ProblemInput,
@@ -157,6 +161,78 @@ export function registerProblemRoutes(
 
       try {
         return await loadProblemOrThrow(resolveDatabase(), id);
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    },
+  );
+
+  app.post<{ Params: ItemParams }>(
+    '/api/problems/:id/duplicate',
+    { schema: { params: idParamsSchema } },
+    async (request, reply) => {
+      const id = parseProblemId(request.params.id);
+      if (id === null) {
+        return reply
+          .status(400)
+          .send(apiError('INVALID_ID', 'The problem ID is invalid.'));
+      }
+
+      try {
+        const resource = await resolveDatabase().transaction(async (tx) => {
+          const [source] = await tx
+            .select()
+            .from(problems)
+            .where(eq(problems.id, id))
+            .for('update');
+          if (!source) {
+            throw new ProblemRouteError(404, {
+              code: 'PROBLEM_NOT_FOUND',
+              message: 'Problem not found.',
+            });
+          }
+
+          const sourceTags = await tx
+            .select({ tagId: problemTags.tagId })
+            .from(problemTags)
+            .where(eq(problemTags.problemId, id));
+
+          const [duplicate] = await tx
+            .insert(problems)
+            .values({
+              name: duplicateProblemName(source.name),
+              categoryId: source.categoryId,
+              difficulty: source.difficulty,
+              status: source.status,
+              lastReviewedOn: source.lastReviewedOn,
+              timesSolved: source.timesSolved,
+              solutionUrl: source.solutionUrl,
+              solutionLabel: source.solutionLabel,
+              sourceUrl: source.sourceUrl,
+              sourceLabel: source.sourceLabel,
+              notes: source.notes,
+            })
+            .returning({ id: problems.id });
+          if (!duplicate) {
+            throw new Error('Problem duplication returned no record.');
+          }
+
+          if (sourceTags.length > 0) {
+            await tx.insert(problemTags).values(
+              sourceTags.map(({ tagId }) => ({
+                problemId: duplicate.id,
+                tagId,
+              })),
+            );
+          }
+
+          return loadProblemOrThrow(tx, duplicate.id);
+        });
+
+        return reply
+          .status(201)
+          .header('location', `/api/problems/${resource.id}`)
+          .send(resource);
       } catch (error) {
         return handleRouteError(error, reply);
       }

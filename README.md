@@ -15,7 +15,7 @@ The project has a working monorepo foundation:
 - a local PostgreSQL Docker Compose service;
 - workspace-wide validation commands.
 
-Problem duplication and inline editing have not been implemented yet.
+Inline editing has not been implemented yet.
 
 ## Main features planned for the MVP
 
@@ -287,6 +287,7 @@ POST   /api/problems
 GET    /api/problems/:id
 PATCH  /api/problems/:id
 DELETE /api/problems/:id
+POST   /api/problems/:id/duplicate
 ```
 
 A minimal creation request requires a name and category:
@@ -436,6 +437,37 @@ state. Opening Create, another Edit panel, or closing a dirty panel requires
 discard confirmation. Automatic coupling between Times solved and Last reviewed
 for arbitrary form edits remains deferred; use Mark reviewed for the explicit
 coupled action.
+
+## Duplicate Problem workflow
+
+Each row includes **Duplicate**. It calls
+`POST /api/problems/:id/duplicate` without a request body. Inside one database
+transaction, the API copies the persisted Category, Difficulty, Status, Tags,
+Solution, Source, Notes, Last reviewed, and Times solved values. The new record
+receives a new decimal-string ID, fresh timestamps, and the source name followed
+by ` Copy`; an existing suffix is retained, so repeated duplication produces
+names such as `Two Sum Copy Copy`.
+
+Problem names use unbounded PostgreSQL `text`, and the product specification
+defines no arbitrary maximum length. The suffix is therefore appended without
+silent truncation.
+
+Only the source row enters the `Duplicating…` state. Its Duplicate, Edit, Mark
+reviewed, and Delete actions are unavailable until the request finishes, while
+other rows remain interactive. Duplication is unavailable for a Problem
+currently open in Edit so unsaved form values cannot be mistaken for persisted
+source data.
+
+The hydrated API response is inserted into canonical local state and sorted
+with the existing case-insensitive name and exact decimal-ID comparator.
+Problems, Categories, and Tags are not reloaded. Active filters remain intact,
+so the duplicate appears only when it matches the derived filtered view. Source
+and unrelated expansion state are preserved, the duplicate starts collapsed,
+and focus returns to the source Duplicate action after success.
+
+Failures leave Problems, filters, expansion, and form state unchanged. A safe
+row-level error is shown separately from Delete and Review errors, and retrying
+clears the prior duplication error.
 
 ## Delete Problem workflow
 

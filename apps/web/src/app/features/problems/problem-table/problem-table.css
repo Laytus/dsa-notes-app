@@ -143,6 +143,7 @@ a {
 }
 
 .edit-button,
+.duplicate-button,
 .review-button,
 .delete-button {
   border: 1px solid #486581;
@@ -161,6 +162,12 @@ a {
   color: #0b69a3;
 }
 
+.duplicate-button {
+  margin-left: 0.45rem;
+  border-color: #627d98;
+  color: #334e68;
+}
+
 .delete-button {
   margin-left: 0.45rem;
   border-color: #c52727;
@@ -168,6 +175,7 @@ a {
 }
 
 .edit-button:focus-visible,
+.duplicate-button:focus-visible,
 .review-button:focus-visible,
 .delete-button:focus-visible {
   outline: 3px solid #62b0e8;
@@ -175,6 +183,7 @@ a {
 }
 
 .edit-button:disabled,
+.duplicate-button:disabled,
 .review-button:disabled,
 .delete-button:disabled {
   cursor: not-allowed;

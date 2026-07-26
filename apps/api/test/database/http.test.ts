@@ -1214,6 +1214,211 @@ describe('problem HTTP API', () => {
     },
   );
 
+  it('duplicates every scalar field, category, and exact tag set with fresh metadata', async () => {
+    const categoryId = await createCategory('Dynamic Programming');
+    const arrayTagId = await createTag('Array');
+    const dpTagId = await createTag('1D DP');
+    const oldTimestamp = new Date('2020-01-01T00:00:00.000Z');
+    const [source] = await requireDatabase()
+      .insert(problems)
+      .values({
+        name: 'House Robber Copy',
+        categoryId,
+        difficulty: 'Medium',
+        status: 'Needs review',
+        lastReviewedOn: '2026-07-25',
+        timesSolved: 4,
+        solutionUrl: 'https://example.com/solution',
+        solutionLabel: 'My solution',
+        sourceUrl: 'https://leetcode.com/problems/house-robber/',
+        sourceLabel: 'LeetCode',
+        notes: 'Keep **all** notes.',
+        createdAt: oldTimestamp,
+        updatedAt: oldTimestamp,
+      })
+      .returning();
+    if (!source) throw new Error('Problem fixture failed.');
+    await requireDatabase().insert(problemTags).values([
+      { problemId: source.id, tagId: arrayTagId },
+      { problemId: source.id, tagId: dpTagId },
+    ]);
+
+    const response = await injectApi({
+      method: 'POST',
+      url: `/api/problems/${source.id}/duplicate`,
+    });
+    const body = response.json<{
+      id: string;
+      name: string;
+      category: { id: string; name: string };
+      tags: Array<{ id: string; name: string }>;
+      createdAt: string;
+      updatedAt: string;
+      [key: string]: unknown;
+    }>();
+
+    expect(response.statusCode).toBe(201);
+    expect(response.headers.location).toBe(`/api/problems/${body.id}`);
+    expect(body.id).not.toBe(source.id.toString());
+    expect(body.id).toMatch(/^[1-9][0-9]*$/u);
+    expect(body).toMatchObject({
+      name: 'House Robber Copy Copy',
+      category: {
+        id: categoryId.toString(),
+        name: 'Dynamic Programming',
+      },
+      difficulty: 'Medium',
+      status: 'Needs review',
+      tags: [
+        { id: dpTagId.toString(), name: '1D DP' },
+        { id: arrayTagId.toString(), name: 'Array' },
+      ],
+      solution: {
+        url: 'https://example.com/solution',
+        label: 'My solution',
+      },
+      source: {
+        url: 'https://leetcode.com/problems/house-robber/',
+        label: 'LeetCode',
+      },
+      notes: 'Keep **all** notes.',
+      timesSolved: 4,
+      lastReviewedOn: '2026-07-25',
+    });
+    expect(new Date(body.createdAt).getTime()).toBeGreaterThan(
+      oldTimestamp.getTime(),
+    );
+    expect(new Date(body.updatedAt).getTime()).toBeGreaterThan(
+      oldTimestamp.getTime(),
+    );
+
+    const persistedProblems = await requireDatabase()
+      .select()
+      .from(problems);
+    expect(persistedProblems).toHaveLength(2);
+    expect(
+      persistedProblems.find(({ id }) => id === source.id),
+    ).toEqual(source);
+    const duplicateId = BigInt(body.id);
+    await expect(
+      requireDatabase()
+        .select({ tagId: problemTags.tagId })
+        .from(problemTags)
+        .where(eq(problemTags.problemId, duplicateId)),
+    ).resolves.toHaveLength(2);
+
+    await requireDatabase()
+      .update(problems)
+      .set({ name: 'Independent duplicate' })
+      .where(eq(problems.id, duplicateId));
+    await expect(
+      requireDatabase()
+        .select({ name: problems.name })
+        .from(problems)
+        .where(eq(problems.id, source.id)),
+    ).resolves.toEqual([{ name: 'House Robber Copy' }]);
+  });
+
+  it('preserves exact IDs beyond Number.MAX_SAFE_INTEGER', async () => {
+    if (!testClient) throw new Error('The test client is unavailable.');
+    await testClient`
+      alter table problems alter column id restart with 9007199254740993
+    `;
+    try {
+      const categoryId = await createCategory();
+      const problemId = await createProblem(categoryId);
+      const response = await injectApi({
+        method: 'POST',
+        url: `/api/problems/${problemId}/duplicate`,
+      });
+      const body = response.json<{ id: string }>();
+
+      expect(problemId).toBe(9_007_199_254_740_993n);
+      expect(response.statusCode).toBe(201);
+      expect(body.id).toBe('9007199254740994');
+    } finally {
+      await testClient`
+        alter table problems alter column id restart with 1
+      `;
+    }
+  });
+
+  it('returns safe errors for missing and malformed duplication sources', async () => {
+    const missing = await injectApi({
+      method: 'POST',
+      url: '/api/problems/9223372036854775807/duplicate',
+    });
+    expect(missing.statusCode).toBe(404);
+    expect(missing.json()).toEqual({
+      error: { code: 'PROBLEM_NOT_FOUND', message: 'Problem not found.' },
+    });
+
+    const malformed = await injectApi({
+      method: 'POST',
+      url: '/api/problems/01/duplicate',
+    });
+    expect(malformed.statusCode).toBe(400);
+    expect(malformed.json()).toEqual({
+      error: { code: 'INVALID_ID', message: 'The problem ID is invalid.' },
+    });
+    await expect(requireDatabase().select().from(problems)).resolves.toEqual([]);
+  });
+
+  it('rolls back the duplicate when copying tag associations fails', async () => {
+    if (!testClient) throw new Error('The test client is unavailable.');
+    const categoryId = await createCategory();
+    const problemId = await createProblem(categoryId);
+    const tagId = await createTag();
+    await requireDatabase()
+      .insert(problemTags)
+      .values({ problemId, tagId });
+    await testClient`
+      create function fail_duplicate_tag_insert()
+      returns trigger
+      language plpgsql
+      as $$
+      begin
+        raise exception 'forced association failure';
+      end;
+      $$
+    `;
+    await testClient`
+      create trigger fail_duplicate_tag_insert_trigger
+      before insert on problem_tags
+      for each row execute function fail_duplicate_tag_insert()
+    `;
+
+    try {
+      const response = await injectApi({
+        method: 'POST',
+        url: `/api/problems/${problemId}/duplicate`,
+      });
+
+      expect(response.statusCode).toBe(500);
+      expect(response.json()).toEqual({
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'An unexpected error occurred.',
+        },
+      });
+      expect(response.body).not.toContain('forced association failure');
+      expect(response.body).not.toContain('problem_tags');
+      await expect(
+        requireDatabase().select().from(problems),
+      ).resolves.toHaveLength(1);
+      await expect(
+        requireDatabase().select().from(problemTags),
+      ).resolves.toHaveLength(1);
+    } finally {
+      await testClient`
+        drop trigger if exists fail_duplicate_tag_insert_trigger on problem_tags
+      `;
+      await testClient`
+        drop function if exists fail_duplicate_tag_insert()
+      `;
+    }
+  });
+
   it('deletes only the problem and its join rows', async () => {
     const categoryId = await createCategory();
     const problemId = await createProblem(categoryId);
