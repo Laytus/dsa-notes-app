@@ -610,6 +610,34 @@ reference-data retry owns recovery. After a successful reference-data load,
 selected IDs that no longer exist in the returned collection are removed only
 from their corresponding filter.
 
+Category and Tag administration uses a focused nonmodal side panel while the
+Problems page remains the owner of the three canonical hydrated collections.
+The panel owns only its active section, inputs, and separate create, rename, and
+per-row delete pending/error state. Mutations use the existing focused HTTP
+services and emit hydrated results back to the page; no reference-data or
+Problem collection reload follows a successful mutation.
+
+Create inserts and Rename replaces reference resources immutably in the API's
+case-insensitive name and exact decimal-ID order. Category renames replace the
+matching hydrated Category object in every canonical Problem. Tag renames
+replace matching hydrated Tag objects and restore deterministic Tag ordering.
+Because filters and Problem forms retain immutable string IDs, their selections
+survive renames while displayed labels and normalized search react immediately.
+
+Successful Category deletion is reconciled locally only after the restrictive
+API deletion succeeds. A `CATEGORY_IN_USE` response remains non-destructive and
+is explained in the panel. Successful global Tag deletion removes the Tag from
+canonical reference state, every canonical Problem association, the active Tag
+filter, and any open Problem form selection. Other dirty form fields, expansion,
+sorting, and row-operation state remain unchanged.
+
+Administration may overlay an existing Create/Edit panel without replacing or
+resetting it. Dirty reference inputs require confirmation before closing or
+switching sections, and in-progress mutations prevent closure. Closing restores
+focus to the administration entry button. The first successful Category
+creation immediately enables Problem creation and supplies the Category to
+filters and forms, making an empty database usable without command-line setup.
+
 ## 12. Frontend state
 
 The initial implementation should prefer straightforward Angular state management:

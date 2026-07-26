@@ -37,6 +37,10 @@ export interface TagResource extends Tag {
   readonly updatedAt: string;
 }
 
+export interface NamedResourceRequest {
+  readonly name: string;
+}
+
 export interface Problem {
   readonly id: string;
   readonly name: string;

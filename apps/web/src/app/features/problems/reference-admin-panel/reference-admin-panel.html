@@ -1,0 +1,164 @@
+<aside class="panel" aria-labelledby="reference-admin-title">
+  <header class="panel-header">
+    <div>
+      <p class="eyebrow">Reference data</p>
+      <h2 id="reference-admin-title">Manage categories and tags</h2>
+    </div>
+    <button
+      type="button"
+      class="close-button"
+      aria-label="Close category and tag administration"
+      [disabled]="
+        categoryCreating() ||
+        tagCreating() ||
+        categoryRenamingIds().size > 0 ||
+        tagRenamingIds().size > 0 ||
+        categoryDeletingIds().size > 0 ||
+        tagDeletingIds().size > 0
+      "
+      (click)="requestClose()"
+    >
+      Close
+    </button>
+  </header>
+
+  <nav class="section-tabs" aria-label="Reference data type">
+    <button
+      type="button"
+      [attr.aria-current]="section() === 'categories' ? 'page' : null"
+      (click)="switchSection('categories')"
+    >
+      Categories
+    </button>
+    <button
+      type="button"
+      [attr.aria-current]="section() === 'tags' ? 'page' : null"
+      (click)="switchSection('tags')"
+    >
+      Tags
+    </button>
+  </nav>
+
+  <section [attr.aria-labelledby]="section() + '-admin-title'">
+    <h3 [id]="section() + '-admin-title'">
+      {{ section() === 'categories' ? 'Categories' : 'Tags' }}
+    </h3>
+
+    <form class="create-form" [formGroup]="createForm" (ngSubmit)="create()" novalidate>
+      <label [for]="'new-' + (section() === 'categories' ? 'category' : 'tag')">
+        New {{ section() === 'categories' ? 'category' : 'tag' }} name
+      </label>
+      <div class="input-actions">
+        <input
+          #createInput
+          [id]="'new-' + (section() === 'categories' ? 'category' : 'tag')"
+          type="text"
+          autocomplete="off"
+          [formControl]="createName"
+          [attr.aria-invalid]="activeCreateErrorValue() !== null"
+          [attr.aria-describedby]="
+            activeCreateErrorValue() ? 'reference-create-error' : null
+          "
+        />
+        <button type="submit" class="primary-button" [disabled]="activeCreating()">
+          {{ activeCreating() ? 'Creating…' : 'Create' }}
+        </button>
+      </div>
+      @if (activeCreateErrorValue()) {
+        <p id="reference-create-error" class="operation-error" role="alert">
+          {{ activeCreateErrorValue() }}
+        </p>
+      }
+    </form>
+
+    @if (
+      (section() === 'categories' ? categories().length : tags().length) === 0
+    ) {
+      <p class="empty-reference">
+        No {{ section() === 'categories' ? 'categories' : 'tags' }} exist yet.
+      </p>
+    } @else {
+      <ul class="resource-list">
+        @for (
+          resource of section() === 'categories' ? categories() : tags();
+          track resource.id
+        ) {
+          <li [attr.data-resource-id]="resource.id">
+            @if (editingId() === resource.id) {
+              <form
+                class="rename-form"
+                [formGroup]="renameForm"
+                (ngSubmit)="rename(resource)"
+                novalidate
+              >
+                <label [for]="'rename-' + resource.id">
+                  Rename {{ resource.name }}
+                </label>
+                <div class="input-actions">
+                  <input
+                    [id]="'rename-' + resource.id"
+                    [attr.data-rename-input]="resource.id"
+                    type="text"
+                    autocomplete="off"
+                    [formControl]="renameName"
+                    [attr.aria-invalid]="activeRenameError(resource.id) !== undefined"
+                    [attr.aria-describedby]="
+                      activeRenameError(resource.id)
+                        ? 'rename-error-' + resource.id
+                        : null
+                    "
+                  />
+                  <button type="submit" [disabled]="isPending(resource.id)">
+                    {{ activeRenaming().has(resource.id) ? 'Saving…' : 'Save' }}
+                  </button>
+                  <button
+                    type="button"
+                    [disabled]="isPending(resource.id)"
+                    (click)="cancelRename()"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            } @else {
+              <span class="resource-name">{{ resource.name }}</span>
+              <div class="row-actions">
+                <button
+                  type="button"
+                  [attr.aria-label]="'Rename ' + resource.name"
+                  [disabled]="isPending(resource.id)"
+                  (click)="startRename(resource)"
+                >
+                  Rename
+                </button>
+                <button
+                  type="button"
+                  class="danger-button"
+                  [attr.aria-label]="'Delete ' + resource.name"
+                  [disabled]="isPending(resource.id)"
+                  (click)="delete(resource)"
+                >
+                  {{
+                    activeDeleting().has(resource.id) ? 'Deleting…' : 'Delete'
+                  }}
+                </button>
+              </div>
+            }
+            @if (activeRenameError(resource.id); as renameError) {
+              <p
+                [id]="'rename-error-' + resource.id"
+                class="operation-error"
+                role="alert"
+              >
+                {{ renameError }}
+              </p>
+            }
+            @if (activeDeleteError(resource.id); as deleteError) {
+              <p class="operation-error" role="alert">{{ deleteError }}</p>
+            }
+          </li>
+        }
+      </ul>
+    }
+  </section>
+</aside>

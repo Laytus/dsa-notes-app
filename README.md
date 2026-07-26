@@ -387,6 +387,31 @@ If Categories or Tags fail to load, only the corresponding filter is disabled.
 Search and the other available filters remain usable, loaded Problems remain
 visible, and the existing reference-data retry remains available.
 
+## Category and Tag administration
+
+Use **Manage categories and tags** beside **Add problem** to open the nonmodal
+reference-data panel. A new empty database presents a **Manage categories**
+action: create the first Category there, then **Add problem**, the Category
+filter, and the Problem form become usable immediately without a page reload or
+command-line API request.
+
+The panel lists Categories and Tags in the API's case-insensitive name order.
+Create and Rename trim surrounding whitespace and use hydrated API responses,
+so decimal-string IDs and server timestamps remain authoritative. Renames are
+reconciled immediately across the Problems table, normalized search, filters,
+and open Problem-form choices while ID-based selections remain stable.
+
+Only unused Categories can be deleted. A referenced Category produces a safe
+explanation that its Problems must first be reassigned or deleted; no local
+Problem is changed. Global Tag deletion requires confirmation and removes the
+Tag from every local Problem association, active Tag filters, and open
+Create/Edit selection without resetting other dirty form fields.
+
+Each create, rename, and delete operation owns its pending and accessible error
+state. Reference changes use immutable local updates and do not reload Problems,
+Categories, or Tags. Opening and closing administration preserves the Problems
+table, filters, expansion, row actions, and any active Create/Edit form.
+
 ## Create Problem workflow
 
 Use the visible **Add problem** action to open the nonmodal creation side panel.

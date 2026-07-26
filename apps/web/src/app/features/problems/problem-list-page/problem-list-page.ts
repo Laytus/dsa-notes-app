@@ -32,6 +32,7 @@ import {
   LOCAL_DATE_SOURCE,
   POSTGRES_INTEGER_MAX,
 } from '../problem-review';
+import { ReferenceAdminPanel } from '../reference-admin-panel/reference-admin-panel';
 import { ProblemTable } from '../problem-table/problem-table';
 
 function compareProblems(left: Problem, right: Problem): number {
@@ -47,13 +48,26 @@ function compareProblems(left: Problem, right: Problem): number {
   return 0;
 }
 
+function compareNamedResources(
+  left: { readonly id: string; readonly name: string },
+  right: { readonly id: string; readonly name: string },
+): number {
+  const leftName = left.name.toLowerCase();
+  const rightName = right.name.toLowerCase();
+  if (leftName < rightName) return -1;
+  if (leftName > rightName) return 1;
+  const leftId = BigInt(left.id);
+  const rightId = BigInt(right.id);
+  return leftId < rightId ? -1 : leftId > rightId ? 1 : 0;
+}
+
 type ActivePanel =
   | { readonly mode: 'create' }
   | { readonly mode: 'edit'; readonly problem: Problem };
 
 @Component({
   selector: 'app-problem-list-page',
-  imports: [ProblemFormPanel, ProblemTable],
+  imports: [ProblemFormPanel, ProblemTable, ReferenceAdminPanel],
   templateUrl: './problem-list-page.html',
   styleUrl: './problem-list-page.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -66,6 +80,8 @@ export class ProblemListPage {
   private readonly currentLocalDate = inject(LOCAL_DATE_SOURCE);
   private readonly addProblemButton =
     viewChild<ElementRef<HTMLButtonElement>>('addProblemButton');
+  private readonly manageReferencesButton =
+    viewChild<ElementRef<HTMLButtonElement>>('manageReferencesButton');
   private readonly problemsHeading =
     viewChild<ElementRef<HTMLHeadingElement>>('problemsHeading');
   private readonly formPanel = viewChild(ProblemFormPanel);
@@ -85,6 +101,7 @@ export class ProblemListPage {
   readonly selectedStatus = signal<ProblemStatus | null>(null);
   readonly selectedTagIds = signal<readonly string[]>([]);
   readonly activePanel = signal<ActivePanel | null>(null);
+  readonly referenceAdminOpen = signal(false);
   readonly successMessage = signal<string | null>(null);
   readonly duplicatingIds = signal<ReadonlySet<string>>(new Set());
   readonly duplicateErrors = signal<ReadonlyMap<string, string>>(new Map());
@@ -297,6 +314,97 @@ export class ProblemListPage {
     if (!this.canSwitchPanel()) return;
     this.successMessage.set(null);
     this.activePanel.set({ mode: 'create' });
+  }
+
+  openReferenceAdmin(): void {
+    this.referenceAdminOpen.set(true);
+  }
+
+  closeReferenceAdmin(): void {
+    this.referenceAdminOpen.set(false);
+    queueMicrotask(() => this.manageReferencesButton()?.nativeElement.focus());
+  }
+
+  onCategoryCreated(category: CategoryResource): void {
+    this.categories.update((current) =>
+      [...current, category].sort(compareNamedResources),
+    );
+    this.categoriesAvailable.set(true);
+    this.successMessage.set(`${category.name} was created.`);
+  }
+
+  onCategoryRenamed(category: CategoryResource): void {
+    this.categories.update((current) =>
+      current
+        .map((item) => (item.id === category.id ? category : item))
+        .sort(compareNamedResources),
+    );
+    this.problems.update((current) =>
+      current.map((problem) =>
+        problem.category.id === category.id
+          ? {
+              ...problem,
+              category: { id: category.id, name: category.name },
+            }
+          : problem,
+      ),
+    );
+    this.successMessage.set(`${category.name} was renamed.`);
+  }
+
+  onCategoryDeleted(categoryId: string): void {
+    const deleted = this.categories().find(({ id }) => id === categoryId);
+    this.categories.update((current) =>
+      current.filter(({ id }) => id !== categoryId),
+    );
+    if (this.selectedCategoryId() === categoryId) {
+      this.selectedCategoryId.set(null);
+    }
+    this.formPanel()?.removeCategorySelection(categoryId);
+    this.successMessage.set(`${deleted?.name ?? 'Category'} was deleted.`);
+  }
+
+  onTagCreated(tag: TagResource): void {
+    this.tags.update((current) =>
+      [...current, tag].sort(compareNamedResources),
+    );
+    this.tagsAvailable.set(true);
+    this.successMessage.set(`${tag.name} was created.`);
+  }
+
+  onTagRenamed(tag: TagResource): void {
+    this.tags.update((current) =>
+      current
+        .map((item) => (item.id === tag.id ? tag : item))
+        .sort(compareNamedResources),
+    );
+    this.problems.update((current) =>
+      current.map((problem) => ({
+        ...problem,
+        tags: problem.tags
+          .map((item) =>
+            item.id === tag.id ? { id: tag.id, name: tag.name } : item,
+          )
+          .sort(compareNamedResources),
+      })),
+    );
+    this.successMessage.set(`${tag.name} was renamed.`);
+  }
+
+  onTagDeleted(tagId: string): void {
+    const deleted = this.tags().find(({ id }) => id === tagId);
+    this.tags.update((current) => current.filter(({ id }) => id !== tagId));
+    this.problems.update((current) =>
+      current.map((problem) => ({
+        ...problem,
+        tags: problem.tags.filter(({ id }) => id !== tagId),
+      })),
+    );
+    this.selectedTagIds.update((current) =>
+      current.filter((id) => id !== tagId),
+    );
+    this.formPanel()?.removeTagSelection(tagId);
+    this.successMessage.set(`${deleted?.name ?? 'Tag'} was deleted.`);
   }
 
   openEditPanel(problem: Problem): void {

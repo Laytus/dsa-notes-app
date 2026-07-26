@@ -7,6 +7,14 @@
 
     <div class="heading-actions">
       <button
+        #manageReferencesButton
+        type="button"
+        class="manage-button"
+        (click)="openReferenceAdmin()"
+      >
+        Manage categories and tags
+      </button>
+      <button
         #addProblemButton
         type="button"
         class="add-button"
@@ -20,9 +28,21 @@
   </div>
 
   @if (createUnavailableMessage()) {
-    <p id="create-unavailable" class="availability-note">
-      {{ createUnavailableMessage() }}
-    </p>
+    @if (!loading() && categoriesAvailable() && categories().length === 0) {
+      <div id="create-unavailable" class="first-category-state">
+        <p>
+          <strong>No categories exist yet.</strong><br />
+          Create your first category to start adding problems.
+        </p>
+        <button type="button" (click)="openReferenceAdmin()">
+          Manage categories
+        </button>
+      </div>
+    } @else {
+      <p id="create-unavailable" class="availability-note">
+        {{ createUnavailableMessage() }}
+      </p>
+    }
   }
 
   @if (successMessage()) {
@@ -53,7 +73,7 @@
       <div class="state-card empty-state">
         <p>No problems have been added yet.</p>
       </div>
-    } @else {
+    }
       <section class="filter-toolbar" aria-labelledby="filter-title">
         <div class="filter-heading">
           <div>
@@ -182,31 +202,32 @@
         </p>
       </section>
 
-      @if (filteredProblems().length === 0) {
+      @if (problems().length > 0 && filteredProblems().length === 0) {
         <div class="state-card no-match-state">
           <p>No problems match the current search and filters.</p>
           <button type="button" (click)="clearFilters()">Clear filters</button>
         </div>
       }
 
-      <app-problem-table
-        [hidden]="filteredProblems().length === 0"
-        [problems]="filteredProblems()"
-        [editableIds]="editableIds()"
-        [duplicatingIds]="duplicatingIds()"
-        [duplicateErrors]="duplicateErrors()"
-        [duplicateDisabledIds]="duplicateDisabledIds()"
-        [deletingIds]="deletingIds()"
-        [deleteErrors]="deleteErrors()"
-        [reviewingIds]="reviewingIds()"
-        [reviewErrors]="reviewErrors()"
-        [reviewDisabledReasons]="reviewDisabledReasons()"
-        (editRequested)="openEditPanel($event)"
-        (duplicateRequested)="requestDuplicate($event)"
-        (deleteRequested)="requestDelete($event)"
-        (reviewRequested)="requestReview($event)"
-      />
-    }
+      @if (problems().length > 0) {
+        <app-problem-table
+          [hidden]="filteredProblems().length === 0"
+          [problems]="filteredProblems()"
+          [editableIds]="editableIds()"
+          [duplicatingIds]="duplicatingIds()"
+          [duplicateErrors]="duplicateErrors()"
+          [duplicateDisabledIds]="duplicateDisabledIds()"
+          [deletingIds]="deletingIds()"
+          [deleteErrors]="deleteErrors()"
+          [reviewingIds]="reviewingIds()"
+          [reviewErrors]="reviewErrors()"
+          [reviewDisabledReasons]="reviewDisabledReasons()"
+          (editRequested)="openEditPanel($event)"
+          (duplicateRequested)="requestDuplicate($event)"
+          (deleteRequested)="requestDelete($event)"
+          (reviewRequested)="requestReview($event)"
+        />
+      }
   }
 </section>
 
@@ -219,5 +240,19 @@
     [tagsAvailable]="tagsAvailable()"
     (saved)="onProblemSaved($event)"
     (closed)="closePanel()"
+  />
+}
+
+@if (referenceAdminOpen()) {
+  <app-reference-admin-panel
+    [categories]="categories()"
+    [tags]="tags()"
+    (closed)="closeReferenceAdmin()"
+    (categoryCreated)="onCategoryCreated($event)"
+    (categoryRenamed)="onCategoryRenamed($event)"
+    (categoryDeleted)="onCategoryDeleted($event)"
+    (tagCreated)="onTagCreated($event)"
+    (tagRenamed)="onTagRenamed($event)"
+    (tagDeleted)="onTagDeleted($event)"
   />
 }

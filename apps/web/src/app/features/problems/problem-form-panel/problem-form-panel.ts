@@ -222,6 +222,21 @@ export class ProblemFormPanel implements AfterViewInit, OnChanges {
     return this.form.dirty;
   }
 
+  removeCategorySelection(categoryId: string): void {
+    if (this.form.controls.categoryId.value !== categoryId) return;
+    this.form.controls.categoryId.setValue('');
+    this.form.controls.categoryId.markAsDirty();
+  }
+
+  removeTagSelection(tagId: string): void {
+    const selected = this.form.controls.tagIds.value;
+    if (!selected.includes(tagId)) return;
+    this.form.controls.tagIds.setValue(
+      selected.filter((id) => id !== tagId),
+    );
+    this.form.controls.tagIds.markAsDirty();
+  }
+
   requestClose(): void {
     if (this.canDiscardChanges()) this.closed.emit();
   }

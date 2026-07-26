@@ -11,6 +11,7 @@ import { CategoriesApiService } from '../../../core/api/categories-api.service';
 import { ProblemsApiService } from '../../../core/api/problems-api.service';
 import { TagsApiService } from '../../../core/api/tags-api.service';
 import { ProblemFormPanel } from '../problem-form-panel/problem-form-panel';
+import { ReferenceAdminPanel } from '../reference-admin-panel/reference-admin-panel';
 import {
   LOCAL_DATE_SOURCE,
   POSTGRES_INTEGER_MAX,
@@ -84,6 +85,12 @@ describe('ProblemListPage', () => {
   let getTags: ReturnType<typeof vi.fn>;
   let createProblem: ReturnType<typeof vi.fn>;
   let updateProblem: ReturnType<typeof vi.fn>;
+  let createCategory: ReturnType<typeof vi.fn>;
+  let updateCategory: ReturnType<typeof vi.fn>;
+  let deleteCategory: ReturnType<typeof vi.fn>;
+  let createTag: ReturnType<typeof vi.fn>;
+  let updateTag: ReturnType<typeof vi.fn>;
+  let deleteTag: ReturnType<typeof vi.fn>;
   let duplicateResponse: Subject<Problem>;
   let duplicateProblem: ReturnType<typeof vi.fn>;
   let deleteResponse: Subject<void>;
@@ -100,6 +107,12 @@ describe('ProblemListPage', () => {
     getTags = vi.fn((): Observable<readonly TagResource[]> => tagsSubject);
     createProblem = vi.fn(() => of(problem));
     updateProblem = vi.fn(() => of(problem));
+    createCategory = vi.fn(() => of(categoryResources[0]!));
+    updateCategory = vi.fn(() => of(categoryResources[0]!));
+    deleteCategory = vi.fn(() => of(undefined));
+    createTag = vi.fn(() => of(tagResources[0]!));
+    updateTag = vi.fn(() => of(tagResources[0]!));
+    deleteTag = vi.fn(() => of(undefined));
     duplicateResponse = new Subject();
     duplicateProblem = vi.fn(() => duplicateResponse);
     deleteResponse = new Subject();
@@ -120,11 +133,16 @@ describe('ProblemListPage', () => {
         },
         {
           provide: CategoriesApiService,
-          useValue: { getCategories },
+          useValue: {
+            getCategories,
+            createCategory,
+            updateCategory,
+            deleteCategory,
+          },
         },
         {
           provide: TagsApiService,
-          useValue: { getTags },
+          useValue: { getTags, createTag, updateTag, deleteTag },
         },
         {
           provide: LOCAL_DATE_SOURCE,
@@ -197,8 +215,199 @@ describe('ProblemListPage', () => {
         .disabled,
     ).toBe(true);
     expect(fixture.nativeElement.textContent).toContain(
-      'Add at least one category',
+      'Create your first category to start adding problems.',
     );
+    expect(fixture.nativeElement.textContent).toContain('Manage categories');
+  });
+
+  it('supports the complete first-category workflow from an empty database', async () => {
+    const firstCategory: CategoryResource = {
+      id: '9007199254740993',
+      name: 'Dynamic Programming',
+      createdAt: '2026-07-26T12:00:00.000Z',
+      updatedAt: '2026-07-26T12:00:00.000Z',
+    };
+    createCategory.mockReturnValue(of(firstCategory));
+    const fixture = TestBed.createComponent(ProblemListPage);
+    problemsSubject.next([]);
+    problemsSubject.complete();
+    completeAuxiliaryLoads();
+    fixture.detectChanges();
+
+    const addButton = fixture.nativeElement.querySelector(
+      '.add-button',
+    ) as HTMLButtonElement;
+    expect(addButton.disabled).toBe(true);
+    const manage = Array.from(
+      fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>,
+    ).find((button) => button.textContent?.trim() === 'Manage categories');
+    (manage as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    const admin = fixture.debugElement.query(
+      By.directive(ReferenceAdminPanel),
+    ).componentInstance as ReferenceAdminPanel;
+    admin.createName.setValue(' Dynamic Programming ');
+    admin.create();
+    fixture.detectChanges();
+
+    expect(createCategory).toHaveBeenCalledWith({
+      name: 'Dynamic Programming',
+    });
+    expect(getProblems).toHaveBeenCalledTimes(1);
+    expect(fixture.componentInstance.categories()).toContainEqual(firstCategory);
+    expect(addButton.disabled).toBe(false);
+    expect(fixture.nativeElement.textContent).toContain('Dynamic Programming');
+    const categoryFilterOptions = Array.from(
+      fixture.nativeElement.querySelectorAll(
+        '.filter-control select option',
+      ) as NodeListOf<HTMLOptionElement>,
+      (option) => option.textContent?.trim(),
+    );
+    expect(categoryFilterOptions).toContain('Dynamic Programming');
+
+    addButton.click();
+    fixture.detectChanges();
+    const form = fixture.debugElement.query(
+      By.directive(ProblemFormPanel),
+    ).componentInstance as ProblemFormPanel;
+    expect(form.categories()).toContainEqual(firstCategory);
+    const optionNames = Array.from(
+      fixture.nativeElement.querySelectorAll('#problem-category option'),
+      (option: Element) => option.textContent?.trim(),
+    );
+    expect(optionNames).toContain('Dynamic Programming');
+  });
+
+  it('reconciles category and tag renames across Problems, filters, and a dirty form', () => {
+    const tagged: Problem = {
+      ...problem,
+      tags: [{ id: '10', name: 'Array' }],
+    };
+    const fixture = TestBed.createComponent(ProblemListPage);
+    problemsSubject.next([tagged]);
+    problemsSubject.complete();
+    completeLoadedPage([tagged]);
+    fixture.detectChanges();
+
+    fixture.componentInstance.selectedCategoryId.set('1');
+    fixture.componentInstance.selectedTagIds.set(['10']);
+    fixture.componentInstance.openEditPanel(tagged);
+    fixture.detectChanges();
+    const form = fixture.debugElement.query(
+      By.directive(ProblemFormPanel),
+    ).componentInstance as ProblemFormPanel;
+    form.form.controls.notes.setValue('unsaved notes');
+    form.form.controls.notes.markAsDirty();
+
+    fixture.componentInstance.onCategoryRenamed({
+      ...categoryResources[0]!,
+      name: 'Data Structures',
+    });
+    fixture.componentInstance.onTagRenamed({
+      ...tagResources[0]!,
+      name: 'Sequence',
+    });
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.problems()[0]?.category.name).toBe(
+      'Data Structures',
+    );
+    expect(fixture.componentInstance.problems()[0]?.tags[0]?.name).toBe(
+      'Sequence',
+    );
+    expect(fixture.componentInstance.selectedCategoryId()).toBe('1');
+    expect(fixture.componentInstance.selectedTagIds()).toEqual(['10']);
+    expect(form.form.controls.categoryId.value).toBe('1');
+    expect(form.form.controls.tagIds.value).toEqual(['10']);
+    expect(form.form.controls.notes.value).toBe('unsaved notes');
+    expect(form.form.dirty).toBe(true);
+    expect(getProblems).toHaveBeenCalledTimes(1);
+  });
+
+  it('reconciles successful reference deletions without disturbing expansion or pending state', () => {
+    const tagged: Problem = {
+      ...problem,
+      tags: [{ id: '10', name: 'Array' }],
+    };
+    const fixture = TestBed.createComponent(ProblemListPage);
+    problemsSubject.next([tagged]);
+    problemsSubject.complete();
+    categoriesSubject.next(categoryResources);
+    categoriesSubject.complete();
+    tagsSubject.next(tagResources);
+    tagsSubject.complete();
+    fixture.detectChanges();
+    fixture.componentInstance.selectedCategoryId.set('2');
+    fixture.componentInstance.selectedTagIds.set(['10', '20']);
+    fixture.componentInstance.reviewingIds.set(new Set(['1']));
+    const table = fixture.debugElement.query(
+      By.directive(ProblemTable),
+    ).componentInstance as ProblemTable;
+    table.toggle('1');
+
+    fixture.componentInstance.openCreatePanel();
+    fixture.detectChanges();
+    const form = fixture.debugElement.query(
+      By.directive(ProblemFormPanel),
+    ).componentInstance as ProblemFormPanel;
+    form.form.patchValue({
+      name: 'Dirty problem',
+      categoryId: '2',
+      tagIds: ['10', '20'],
+    });
+    form.form.markAsDirty();
+
+    fixture.componentInstance.onCategoryDeleted('2');
+    fixture.componentInstance.onTagDeleted('10');
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.categories().some(({ id }) => id === '2')).toBe(
+      false,
+    );
+    expect(fixture.componentInstance.selectedCategoryId()).toBeNull();
+    expect(fixture.componentInstance.tags().some(({ id }) => id === '10')).toBe(
+      false,
+    );
+    expect(fixture.componentInstance.problems()[0]?.tags).toEqual([]);
+    expect(fixture.componentInstance.selectedTagIds()).toEqual(['20']);
+    expect(form.form.controls.categoryId.value).toBe('');
+    expect(form.form.controls.tagIds.value).toEqual(['20']);
+    expect(form.form.controls.name.value).toBe('Dirty problem');
+    expect(form.form.dirty).toBe(true);
+    expect(table.expandedIds().has('1')).toBe(true);
+    expect(fixture.componentInstance.reviewingIds().has('1')).toBe(true);
+    expect(getProblems).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens and closes administration without resetting a dirty Problem form and restores focus', async () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completeLoadedPage([problem]);
+    fixture.detectChanges();
+    const addButton = fixture.nativeElement.querySelector(
+      '.add-button',
+    ) as HTMLButtonElement;
+    addButton.click();
+    fixture.detectChanges();
+    const form = fixture.debugElement.query(
+      By.directive(ProblemFormPanel),
+    ).componentInstance as ProblemFormPanel;
+    form.form.controls.notes.setValue('keep me');
+    form.form.controls.notes.markAsDirty();
+    const manage = fixture.nativeElement.querySelector(
+      '.manage-button',
+    ) as HTMLButtonElement;
+    manage.click();
+    fixture.detectChanges();
+    expect(fixture.debugElement.query(By.directive(ProblemFormPanel))).not.toBeNull();
+    expect(fixture.debugElement.query(By.directive(ReferenceAdminPanel))).not.toBeNull();
+
+    fixture.componentInstance.closeReferenceAdmin();
+    fixture.detectChanges();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    expect(form.form.controls.notes.value).toBe('keep me');
+    expect(form.form.dirty).toBe(true);
+    expect(document.activeElement).toBe(manage);
   });
 
   it('shows a safe primary error and retries only on request', () => {

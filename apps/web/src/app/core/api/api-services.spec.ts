@@ -95,6 +95,97 @@ describe('API services', () => {
     await expect(result).resolves.toEqual(response);
   });
 
+  it('creates, renames, and deletes a category with exact string IDs', async () => {
+    const service = TestBed.inject(CategoriesApiService);
+    const id = '9007199254740993';
+    const resource: CategoryResource = {
+      id,
+      name: 'Dynamic Programming',
+      createdAt: '2026-07-25T18:30:00.000Z',
+      updatedAt: '2026-07-25T18:30:00.000Z',
+    };
+
+    const createResult = firstValueFrom(
+      service.createCategory({ name: 'Dynamic Programming' }),
+    );
+    const createRequest = httpTesting.expectOne('/api/categories');
+    expect(createRequest.request.method).toBe('POST');
+    expect(createRequest.request.body).toEqual({ name: 'Dynamic Programming' });
+    createRequest.flush(resource);
+    await expect(createResult).resolves.toEqual(resource);
+
+    const updateResult = firstValueFrom(
+      service.updateCategory(id, { name: 'DP' }),
+    );
+    const updateRequest = httpTesting.expectOne(`/api/categories/${id}`);
+    expect(updateRequest.request.method).toBe('PATCH');
+    expect(updateRequest.request.body).toEqual({ name: 'DP' });
+    updateRequest.flush({ ...resource, name: 'DP' });
+    await expect(updateResult).resolves.toMatchObject({ id, name: 'DP' });
+
+    const deleteResult = firstValueFrom(service.deleteCategory(id));
+    const deleteRequest = httpTesting.expectOne(`/api/categories/${id}`);
+    expect(deleteRequest.request.method).toBe('DELETE');
+    deleteRequest.flush(null);
+    await expect(deleteResult).resolves.toBeNull();
+  });
+
+  it('creates, renames, and deletes a tag with exact string IDs', async () => {
+    const service = TestBed.inject(TagsApiService);
+    const id = '9007199254740995';
+    const resource: TagResource = {
+      id,
+      name: 'Hash Map',
+      createdAt: '2026-07-25T18:30:00.000Z',
+      updatedAt: '2026-07-25T18:30:00.000Z',
+    };
+
+    const createResult = firstValueFrom(service.createTag({ name: 'Hash Map' }));
+    const createRequest = httpTesting.expectOne('/api/tags');
+    expect(createRequest.request.method).toBe('POST');
+    expect(createRequest.request.body).toEqual({ name: 'Hash Map' });
+    createRequest.flush(resource);
+    await expect(createResult).resolves.toEqual(resource);
+
+    const updateResult = firstValueFrom(
+      service.updateTag(id, { name: 'Hash table' }),
+    );
+    const updateRequest = httpTesting.expectOne(`/api/tags/${id}`);
+    expect(updateRequest.request.method).toBe('PATCH');
+    expect(updateRequest.request.body).toEqual({ name: 'Hash table' });
+    updateRequest.flush({ ...resource, name: 'Hash table' });
+    await expect(updateResult).resolves.toMatchObject({
+      id,
+      name: 'Hash table',
+    });
+
+    const deleteResult = firstValueFrom(service.deleteTag(id));
+    const deleteRequest = httpTesting.expectOne(`/api/tags/${id}`);
+    expect(deleteRequest.request.method).toBe('DELETE');
+    deleteRequest.flush(null);
+    await expect(deleteResult).resolves.toBeNull();
+  });
+
+  it('propagates category and tag mutation failures', async () => {
+    const categories = TestBed.inject(CategoriesApiService);
+    const tags = TestBed.inject(TagsApiService);
+    const categoryResult = firstValueFrom(
+      categories.createCategory({ name: 'Arrays' }),
+    );
+    httpTesting.expectOne('/api/categories').flush(
+      { error: { code: 'CATEGORY_NAME_CONFLICT' } },
+      { status: 409, statusText: 'Conflict' },
+    );
+    await expect(categoryResult).rejects.toMatchObject({ status: 409 });
+
+    const tagResult = firstValueFrom(tags.deleteTag('9007199254740993'));
+    httpTesting.expectOne('/api/tags/9007199254740993').flush(
+      { error: { code: 'TAG_NOT_FOUND' } },
+      { status: 404, statusText: 'Not Found' },
+    );
+    await expect(tagResult).rejects.toMatchObject({ status: 404 });
+  });
+
   it('propagates HTTP failures to the caller', async () => {
     const service = TestBed.inject(ProblemsApiService);
     const result = firstValueFrom(service.getProblems());

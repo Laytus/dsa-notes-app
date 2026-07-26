@@ -41,6 +41,10 @@ h2 {
   background: #0f609b;
 }
 
+.manage-button {
+  background: #fff;
+}
+
 button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
@@ -51,6 +55,20 @@ button:disabled {
   color: #627d98;
   font-size: 0.85rem;
   text-align: right;
+}
+
+.first-category-state {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin: -0.5rem 0 1rem;
+  color: #486581;
+  text-align: right;
+}
+
+.first-category-state p {
+  margin: 0;
 }
 
 .success-message {
@@ -245,6 +263,17 @@ button:focus-visible {
 }
 
 @media (max-width: 600px) {
+  .section-heading,
+  .first-category-state {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .heading-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .section-heading,
   .heading-actions,
   .warning,
