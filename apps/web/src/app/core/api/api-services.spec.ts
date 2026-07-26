@@ -227,4 +227,29 @@ describe('API services', () => {
 
     await expect(result).rejects.toMatchObject({ status: 404 });
   });
+
+  it('deletes using the exact string ID beyond the safe integer range', async () => {
+    const service = TestBed.inject(ProblemsApiService);
+    const id = '9007199254740993';
+
+    const result = firstValueFrom(service.deleteProblem(id));
+    const request = httpTesting.expectOne(`/api/problems/${id}`);
+    expect(request.request.method).toBe('DELETE');
+    expect(request.request.body).toBeNull();
+    request.flush(null, { status: 204, statusText: 'No Content' });
+
+    await expect(result).resolves.toBeNull();
+  });
+
+  it('propagates delete failures', async () => {
+    const service = TestBed.inject(ProblemsApiService);
+    const result = firstValueFrom(service.deleteProblem('12'));
+    const request = httpTesting.expectOne('/api/problems/12');
+    request.flush(
+      { error: { code: 'PROBLEM_NOT_FOUND', message: 'Missing' } },
+      { status: 404, statusText: 'Not Found' },
+    );
+
+    await expect(result).rejects.toMatchObject({ status: 404 });
+  });
 });

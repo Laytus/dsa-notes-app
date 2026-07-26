@@ -142,7 +142,8 @@ a {
   text-align: center;
 }
 
-.edit-button {
+.edit-button,
+.delete-button {
   border: 1px solid #486581;
   border-radius: 0.35rem;
   background: #fff;
@@ -153,14 +154,30 @@ a {
   padding: 0.4rem 0.65rem;
 }
 
-.edit-button:focus-visible {
+.delete-button {
+  margin-left: 0.45rem;
+  border-color: #c52727;
+  color: #a61b1b;
+}
+
+.edit-button:focus-visible,
+.delete-button:focus-visible {
   outline: 3px solid #62b0e8;
   outline-offset: 2px;
 }
 
-.edit-button:disabled {
+.edit-button:disabled,
+.delete-button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
+}
+
+.delete-error {
+  min-width: 12rem;
+  margin: 0.4rem 0 0;
+  color: #a61b1b;
+  font-size: 0.75rem;
+  white-space: normal;
 }
 
 .details-row td {

@@ -90,6 +90,23 @@ controls are unavailable and the original tag IDs are included unchanged in
 the complete PATCH body. This prevents an auxiliary failure from silently
 clearing associations.
 
+The Problems page also owns immutable per-Problem deleting IDs and delete-error
+maps. Row actions emit the hydrated Problem, while the page confirms and issues
+DELETE. Only the pending row disables Edit and Delete; unrelated rows remain
+interactive. A successful response filters the canonical collection by string
+ID and asks the table to remove only that ID from its expansion set.
+
+Deleting the active edited Problem closes that editor after success. If it is
+dirty, one combined confirmation names the Problem and explicitly warns that
+unsaved edits will be discarded. Deleting another Problem does not affect an
+active Edit or Create form. Focus moves to Add Problem after success, with the
+focusable Problems heading as a fallback when Add is disabled.
+
+Delete failures remain associated with their row in an accessible live alert.
+The page clears pending state on both success and failure. Network, `404`, and
+unexpected failures use stable safe text; `404` does not remove local state
+implicitly, and retry clears the prior row error before the next request.
+
 ### Backend: Node.js, TypeScript, and Fastify
 
 Fastify is used for a minimal HTTP API because:

@@ -25,4 +25,8 @@ export class ProblemsApiService {
   ): Observable<Problem> {
     return this.http.patch<Problem>(`/api/problems/${id}`, request);
   }
+
+  deleteProblem(id: string): Observable<void> {
+    return this.http.delete<void>(`/api/problems/${id}`);
+  }
 }

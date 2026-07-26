@@ -217,6 +217,10 @@ export class ProblemFormPanel implements AfterViewInit, OnChanges {
     );
   }
 
+  hasUnsavedChanges(): boolean {
+    return this.form.dirty;
+  }
+
   requestClose(): void {
     if (this.canDiscardChanges()) this.closed.emit();
   }

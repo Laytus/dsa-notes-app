@@ -18,7 +18,10 @@ import type { Problem } from '../../../core/api/api.models';
 export class ProblemTable {
   readonly problems = input.required<readonly Problem[]>();
   readonly editableIds = input<ReadonlySet<string>>(new Set());
+  readonly deletingIds = input<ReadonlySet<string>>(new Set());
+  readonly deleteErrors = input<ReadonlyMap<string, string>>(new Map());
   readonly editRequested = output<Problem>();
+  readonly deleteRequested = output<Problem>();
   readonly expandedIds = signal<ReadonlySet<string>>(new Set());
   private readonly editButtons =
     viewChildren<ElementRef<HTMLButtonElement>>('editButton');
@@ -31,6 +34,13 @@ export class ProblemTable {
     const next = new Set(this.expandedIds());
     if (next.has(id)) next.delete(id);
     else next.add(id);
+    this.expandedIds.set(next);
+  }
+
+  removeExpanded(id: string): void {
+    if (!this.expandedIds().has(id)) return;
+    const next = new Set(this.expandedIds());
+    next.delete(id);
     this.expandedIds.set(next);
   }
 

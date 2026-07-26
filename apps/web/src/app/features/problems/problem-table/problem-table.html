@@ -82,22 +82,53 @@
               [attr.data-problem-id]="problem.id"
               [attr.aria-label]="'Edit ' + problem.name"
               [attr.aria-describedby]="
-                editableIds().has(problem.id)
+                editableIds().has(problem.id) && !deletingIds().has(problem.id)
                   ? null
                   : 'edit-unavailable-' + problem.id
               "
-              [disabled]="!editableIds().has(problem.id)"
+              [disabled]="
+                !editableIds().has(problem.id) || deletingIds().has(problem.id)
+              "
               (click)="editRequested.emit(problem)"
             >
               Edit
             </button>
-            @if (!editableIds().has(problem.id)) {
+            @if (
+              !editableIds().has(problem.id) || deletingIds().has(problem.id)
+            ) {
               <span
                 class="visually-hidden"
                 [id]="'edit-unavailable-' + problem.id"
               >
-                Editing is unavailable because the current category is not loaded.
+                {{
+                  deletingIds().has(problem.id)
+                    ? 'Editing is unavailable while this problem is being deleted.'
+                    : 'Editing is unavailable because the current category is not loaded.'
+                }}
               </span>
+            }
+            <button
+              type="button"
+              class="delete-button"
+              [attr.aria-label]="'Delete ' + problem.name"
+              [attr.aria-describedby]="
+                deleteErrors().has(problem.id)
+                  ? 'delete-error-' + problem.id
+                  : null
+              "
+              [disabled]="deletingIds().has(problem.id)"
+              (click)="deleteRequested.emit(problem)"
+            >
+              {{ deletingIds().has(problem.id) ? 'Deleting…' : 'Delete' }}
+            </button>
+            @if (deleteErrors().get(problem.id); as deleteError) {
+              <p
+                class="delete-error"
+                [id]="'delete-error-' + problem.id"
+                role="alert"
+              >
+                {{ deleteError }}
+              </p>
             }
           </td>
         </tr>

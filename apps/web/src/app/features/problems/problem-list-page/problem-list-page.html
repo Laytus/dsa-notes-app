@@ -2,7 +2,7 @@
   <div class="section-heading">
     <div>
       <p class="section-kicker">Problem library</p>
-      <h2 id="problems-title">Problems</h2>
+      <h2 #problemsHeading id="problems-title" tabindex="-1">Problems</h2>
     </div>
 
     <div class="heading-actions">
@@ -62,7 +62,10 @@
       <app-problem-table
         [problems]="problems()"
         [editableIds]="editableIds()"
+        [deletingIds]="deletingIds()"
+        [deleteErrors]="deleteErrors()"
         (editRequested)="openEditPanel($event)"
+        (deleteRequested)="requestDelete($event)"
       />
     }
   }

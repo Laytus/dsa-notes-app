@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { Observable, of, Subject } from 'rxjs';
@@ -10,6 +11,7 @@ import { CategoriesApiService } from '../../../core/api/categories-api.service';
 import { ProblemsApiService } from '../../../core/api/problems-api.service';
 import { TagsApiService } from '../../../core/api/tags-api.service';
 import { ProblemFormPanel } from '../problem-form-panel/problem-form-panel';
+import { ProblemTable } from '../problem-table/problem-table';
 import { ProblemListPage } from './problem-list-page';
 
 const problem: Problem = {
@@ -37,6 +39,8 @@ describe('ProblemListPage', () => {
   let getTags: ReturnType<typeof vi.fn>;
   let createProblem: ReturnType<typeof vi.fn>;
   let updateProblem: ReturnType<typeof vi.fn>;
+  let deleteResponse: Subject<void>;
+  let deleteProblem: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     problemsSubject = new Subject();
@@ -49,13 +53,20 @@ describe('ProblemListPage', () => {
     getTags = vi.fn((): Observable<readonly TagResource[]> => tagsSubject);
     createProblem = vi.fn(() => of(problem));
     updateProblem = vi.fn(() => of(problem));
+    deleteResponse = new Subject();
+    deleteProblem = vi.fn(() => deleteResponse);
 
     await TestBed.configureTestingModule({
       imports: [ProblemListPage],
       providers: [
         {
           provide: ProblemsApiService,
-          useValue: { getProblems, createProblem, updateProblem },
+          useValue: {
+            getProblems,
+            createProblem,
+            updateProblem,
+            deleteProblem,
+          },
         },
         {
           provide: CategoriesApiService,
@@ -500,5 +511,336 @@ describe('ProblemListPage', () => {
     expect(fixture.nativeElement.textContent).toContain(
       'Existing tags are preserved',
     );
+  });
+
+  it('requires named confirmation and prevents duplicate pending deletes', () => {
+    const secondProblem: Problem = { ...problem, id: '2', name: 'Three Sum' };
+    const fixture = TestBed.createComponent(ProblemListPage);
+    problemsSubject.next([problem, secondProblem]);
+    problemsSubject.complete();
+    categoriesSubject.next([
+      {
+        id: '1',
+        name: 'Arrays',
+        createdAt: '2026-07-25T18:00:00.000Z',
+        updatedAt: '2026-07-25T18:00:00.000Z',
+      },
+    ]);
+    categoriesSubject.complete();
+    tagsSubject.next([]);
+    tagsSubject.complete();
+    fixture.detectChanges();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const deleteButtons = fixture.nativeElement.querySelectorAll(
+      '.delete-button',
+    ) as NodeListOf<HTMLButtonElement>;
+
+    deleteButtons[0]?.click();
+    expect(confirm).toHaveBeenCalledWith(
+      'Delete “Two Sum”? This action cannot be undone.',
+    );
+    expect(deleteProblem).not.toHaveBeenCalled();
+
+    confirm.mockReturnValue(true);
+    deleteButtons[0]?.click();
+    fixture.detectChanges();
+    fixture.componentInstance.requestDelete(problem);
+
+    expect(deleteProblem).toHaveBeenCalledTimes(1);
+    expect(deleteProblem).toHaveBeenCalledWith('1');
+    expect(deleteButtons[0]?.disabled).toBe(true);
+    expect(deleteButtons[1]?.disabled).toBe(false);
+    confirm.mockRestore();
+  });
+
+  it('removes only the confirmed problem, cleans its expansion, and focuses Add', async () => {
+    const secondProblem: Problem = { ...problem, id: '2', name: 'Three Sum' };
+    const fixture = TestBed.createComponent(ProblemListPage);
+    problemsSubject.next([problem, secondProblem]);
+    problemsSubject.complete();
+    categoriesSubject.next([
+      {
+        id: '1',
+        name: 'Arrays',
+        createdAt: '2026-07-25T18:00:00.000Z',
+        updatedAt: '2026-07-25T18:00:00.000Z',
+      },
+    ]);
+    categoriesSubject.complete();
+    tagsSubject.next([]);
+    tagsSubject.complete();
+    fixture.detectChanges();
+    const table = fixture.debugElement.query(
+      By.directive(ProblemTable),
+    ).componentInstance as ProblemTable;
+    table.toggle('1');
+    table.toggle('2');
+    fixture.detectChanges();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    (
+      fixture.nativeElement.querySelector(
+        '[data-problem-id="1"] .delete-button',
+      ) as HTMLButtonElement
+    ).click();
+    deleteResponse.next();
+    deleteResponse.complete();
+    fixture.detectChanges();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.problems()).toEqual([secondProblem]);
+    expect(getProblems).toHaveBeenCalledTimes(1);
+    expect(table.isExpanded('1')).toBe(false);
+    expect(table.isExpanded('2')).toBe(true);
+    expect(
+      fixture.nativeElement.querySelector('[data-problem-id="1"]'),
+    ).toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('[data-problem-id="2"] + .details-row'),
+    ).not.toBeNull();
+    expect(document.activeElement).toBe(
+      fixture.nativeElement.querySelector('.add-button'),
+    );
+    confirm.mockRestore();
+  });
+
+  it('transitions to empty state and focuses the heading when Add is disabled', async () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    problemsSubject.next([problem]);
+    problemsSubject.complete();
+    completeAuxiliaryLoads();
+    fixture.detectChanges();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    (
+      fixture.nativeElement.querySelector('.delete-button') as HTMLButtonElement
+    ).click();
+    deleteResponse.next();
+    deleteResponse.complete();
+    fixture.detectChanges();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.problems()).toEqual([]);
+    expect(fixture.nativeElement.textContent).toContain(
+      'No problems have been added yet.',
+    );
+    expect(fixture.nativeElement.querySelector('table')).toBeNull();
+    expect(document.activeElement).toBe(
+      fixture.nativeElement.querySelector('#problems-title'),
+    );
+    confirm.mockRestore();
+  });
+
+  it('uses combined confirmation before deleting a dirty active edit', async () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    problemsSubject.next([problem]);
+    problemsSubject.complete();
+    categoriesSubject.next([
+      {
+        id: '1',
+        name: 'Arrays',
+        createdAt: '2026-07-25T18:00:00.000Z',
+        updatedAt: '2026-07-25T18:00:00.000Z',
+      },
+    ]);
+    categoriesSubject.complete();
+    tagsSubject.next([]);
+    tagsSubject.complete();
+    fixture.detectChanges();
+    (
+      fixture.nativeElement.querySelector('.edit-button') as HTMLButtonElement
+    ).click();
+    fixture.detectChanges();
+    const panel = fixture.debugElement.query(
+      By.directive(ProblemFormPanel),
+    ).componentInstance as ProblemFormPanel;
+    panel.form.controls.name.setValue('Unsaved');
+    panel.form.controls.name.markAsDirty();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const deleteButton = fixture.nativeElement.querySelector(
+      '.delete-button',
+    ) as HTMLButtonElement;
+
+    deleteButton.click();
+    expect(confirm).toHaveBeenCalledWith(
+      'Delete “Two Sum”? This action cannot be undone and unsaved edits will be discarded.',
+    );
+    expect(deleteProblem).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.activePanel()?.mode).toBe('edit');
+
+    confirm.mockReturnValue(true);
+    deleteButton.click();
+    deleteResponse.next();
+    deleteResponse.complete();
+    fixture.detectChanges();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.activePanel()).toBeNull();
+    expect(document.activeElement).toBe(
+      fixture.nativeElement.querySelector('.add-button'),
+    );
+    confirm.mockRestore();
+  });
+
+  it('preserves a dirty editor when deleting a different problem', () => {
+    const secondProblem: Problem = { ...problem, id: '2', name: 'Three Sum' };
+    const fixture = TestBed.createComponent(ProblemListPage);
+    problemsSubject.next([problem, secondProblem]);
+    problemsSubject.complete();
+    categoriesSubject.next([
+      {
+        id: '1',
+        name: 'Arrays',
+        createdAt: '2026-07-25T18:00:00.000Z',
+        updatedAt: '2026-07-25T18:00:00.000Z',
+      },
+    ]);
+    categoriesSubject.complete();
+    tagsSubject.next([]);
+    tagsSubject.complete();
+    fixture.detectChanges();
+    const rows = fixture.nativeElement.querySelectorAll(
+      '.problem-row',
+    ) as NodeListOf<HTMLTableRowElement>;
+    (rows[0]?.querySelector('.edit-button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const panel = fixture.debugElement.query(
+      By.directive(ProblemFormPanel),
+    ).componentInstance as ProblemFormPanel;
+    panel.form.controls.name.setValue('Unsaved edit');
+    panel.form.controls.name.markAsDirty();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    (rows[1]?.querySelector('.delete-button') as HTMLButtonElement).click();
+    deleteResponse.next();
+    deleteResponse.complete();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.activePanel()).toEqual({
+      mode: 'edit',
+      problem,
+    });
+    expect(panel.form.controls.name.value).toBe('Unsaved edit');
+    confirm.mockRestore();
+  });
+
+  it('preserves a dirty Create panel while deleting a problem', () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    problemsSubject.next([problem]);
+    problemsSubject.complete();
+    categoriesSubject.next([
+      {
+        id: '1',
+        name: 'Arrays',
+        createdAt: '2026-07-25T18:00:00.000Z',
+        updatedAt: '2026-07-25T18:00:00.000Z',
+      },
+    ]);
+    categoriesSubject.complete();
+    tagsSubject.next([]);
+    tagsSubject.complete();
+    fixture.detectChanges();
+    (
+      fixture.nativeElement.querySelector('.add-button') as HTMLButtonElement
+    ).click();
+    fixture.detectChanges();
+    const panel = fixture.debugElement.query(
+      By.directive(ProblemFormPanel),
+    ).componentInstance as ProblemFormPanel;
+    panel.form.controls.name.setValue('Unsaved create');
+    panel.form.controls.name.markAsDirty();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    (
+      fixture.nativeElement.querySelector('.delete-button') as HTMLButtonElement
+    ).click();
+    deleteResponse.next();
+    deleteResponse.complete();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.activePanel()?.mode).toBe('create');
+    expect(panel.form.controls.name.value).toBe('Unsaved create');
+    confirm.mockRestore();
+  });
+
+  it.each([
+    [
+      new HttpErrorResponse({
+        status: 404,
+        error: { error: { code: 'PROBLEM_NOT_FOUND', message: 'raw secret' } },
+      }),
+      'This problem no longer exists on the server.',
+    ],
+    [
+      new HttpErrorResponse({ status: 0, statusText: 'Network Error' }),
+      'Could not connect to the API.',
+    ],
+    [new Error('database secret'), 'The problem could not be deleted.'],
+  ])('preserves state and shows a safe delete failure for %s', (failure, message) => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    problemsSubject.next([problem]);
+    problemsSubject.complete();
+    completeAuxiliaryLoads();
+    fixture.detectChanges();
+    const table = fixture.debugElement.query(
+      By.directive(ProblemTable),
+    ).componentInstance as ProblemTable;
+    table.toggle(problem.id);
+    fixture.detectChanges();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    (
+      fixture.nativeElement.querySelector('.delete-button') as HTMLButtonElement
+    ).click();
+    deleteResponse.error(failure);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.problems()).toEqual([problem]);
+    expect(table.isExpanded(problem.id)).toBe(true);
+    expect(fixture.componentInstance.deletingIds().has(problem.id)).toBe(false);
+    expect(fixture.nativeElement.textContent).toContain(message);
+    expect(fixture.nativeElement.textContent).not.toContain('raw secret');
+    expect(fixture.nativeElement.textContent).not.toContain('database secret');
+    confirm.mockRestore();
+  });
+
+  it('clears a previous delete error when a retry succeeds', () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    problemsSubject.next([problem]);
+    problemsSubject.complete();
+    completeAuxiliaryLoads();
+    fixture.detectChanges();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const firstResponse = deleteResponse;
+
+    (
+      fixture.nativeElement.querySelector('.delete-button') as HTMLButtonElement
+    ).click();
+    firstResponse.error(
+      new HttpErrorResponse({ status: 500, statusText: 'Server Error' }),
+    );
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain(
+      'The problem could not be deleted.',
+    );
+
+    deleteResponse = new Subject();
+    (
+      fixture.nativeElement.querySelector('.delete-button') as HTMLButtonElement
+    ).click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).not.toContain(
+      'The problem could not be deleted.',
+    );
+    deleteResponse.next();
+    deleteResponse.complete();
+    fixture.detectChanges();
+
+    expect(deleteProblem).toHaveBeenCalledTimes(2);
+    expect(fixture.componentInstance.problems()).toEqual([]);
+    confirm.mockRestore();
   });
 });

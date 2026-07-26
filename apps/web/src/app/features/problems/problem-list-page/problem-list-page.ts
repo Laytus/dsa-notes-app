@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -52,6 +53,8 @@ export class ProblemListPage {
   private readonly destroyRef = inject(DestroyRef);
   private readonly addProblemButton =
     viewChild<ElementRef<HTMLButtonElement>>('addProblemButton');
+  private readonly problemsHeading =
+    viewChild<ElementRef<HTMLHeadingElement>>('problemsHeading');
   private readonly formPanel = viewChild(ProblemFormPanel);
   private readonly problemTable = viewChild(ProblemTable);
 
@@ -65,6 +68,8 @@ export class ProblemListPage {
   readonly tagsAvailable = signal(true);
   readonly activePanel = signal<ActivePanel | null>(null);
   readonly successMessage = signal<string | null>(null);
+  readonly deletingIds = signal<ReadonlySet<string>>(new Set());
+  readonly deleteErrors = signal<ReadonlyMap<string, string>>(new Map());
   readonly canCreate = computed(
     () =>
       !this.loading() &&
@@ -208,7 +213,85 @@ export class ProblemListPage {
     this.closePanel();
   }
 
+  requestDelete(problem: Problem): void {
+    if (this.deletingIds().has(problem.id)) return;
+
+    const active = this.activePanel();
+    const discardsDirtyEdit =
+      active?.mode === 'edit' &&
+      active.problem.id === problem.id &&
+      (this.formPanel()?.hasUnsavedChanges() ?? false);
+    const message = discardsDirtyEdit
+      ? `Delete “${problem.name}”? This action cannot be undone and unsaved edits will be discarded.`
+      : `Delete “${problem.name}”? This action cannot be undone.`;
+    if (!window.confirm(message)) return;
+
+    this.clearDeleteError(problem.id);
+    this.deletingIds.update((current) => new Set(current).add(problem.id));
+    this.problemsApi
+      .deleteProblem(problem.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.clearDeleting(problem.id);
+          this.problemTable()?.removeExpanded(problem.id);
+          this.problems.update((current) =>
+            current.filter(({ id }) => id !== problem.id),
+          );
+          const currentPanel = this.activePanel();
+          if (
+            currentPanel?.mode === 'edit' &&
+            currentPanel.problem.id === problem.id
+          ) {
+            this.activePanel.set(null);
+          }
+          this.successMessage.set(`${problem.name} was deleted.`);
+          queueMicrotask(() => {
+            const addButton = this.addProblemButton()?.nativeElement;
+            if (addButton && !addButton.disabled) addButton.focus();
+            else this.problemsHeading()?.nativeElement.focus();
+          });
+        },
+        error: (error: unknown) => {
+          this.clearDeleting(problem.id);
+          this.deleteErrors.update((current) => {
+            const next = new Map(current);
+            next.set(problem.id, this.deleteErrorMessage(error));
+            return next;
+          });
+        },
+      });
+  }
+
   private canSwitchPanel(): boolean {
     return this.activePanel() === null || (this.formPanel()?.canDiscardChanges() ?? true);
+  }
+
+  private clearDeleting(id: string): void {
+    this.deletingIds.update((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
+  }
+
+  private clearDeleteError(id: string): void {
+    this.deleteErrors.update((current) => {
+      const next = new Map(current);
+      next.delete(id);
+      return next;
+    });
+  }
+
+  private deleteErrorMessage(error: unknown): string {
+    if (error instanceof HttpErrorResponse) {
+      if (error.status === 0) {
+        return 'Could not connect to the API. The problem was not deleted.';
+      }
+      if (error.status === 404) {
+        return 'This problem no longer exists on the server. Refresh or try again.';
+      }
+    }
+    return 'The problem could not be deleted. Try again.';
   }
 }

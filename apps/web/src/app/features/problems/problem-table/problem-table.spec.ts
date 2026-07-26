@@ -211,4 +211,59 @@ describe('ProblemTable', () => {
       fixture.nativeElement.querySelector(`#${descriptionId}`).textContent,
     ).toContain('current category is not loaded');
   });
+
+  it('exposes an accessible Delete action for each problem', () => {
+    const fixture = createFixture([completeProblem, nullableProblem]);
+    const emitted = vi.fn();
+    fixture.componentInstance.deleteRequested.subscribe(emitted);
+    const buttons = fixture.nativeElement.querySelectorAll(
+      '.delete-button',
+    ) as NodeListOf<HTMLButtonElement>;
+
+    expect(buttons).toHaveLength(2);
+    expect(buttons[0]?.getAttribute('aria-label')).toBe('Delete Two Sum');
+    expect(buttons[1]?.getAttribute('aria-label')).toBe('Delete Empty fields');
+    buttons[0]?.click();
+    expect(emitted).toHaveBeenCalledWith(completeProblem);
+  });
+
+  it('disables only the pending row actions and announces its delete error', () => {
+    const fixture = createFixture([completeProblem, nullableProblem]);
+    fixture.componentRef.setInput('deletingIds', new Set(['12']));
+    fixture.componentRef.setInput(
+      'deleteErrors',
+      new Map([['12', 'The problem could not be deleted. Try again.']]),
+    );
+    fixture.detectChanges();
+
+    const rows = fixture.nativeElement.querySelectorAll(
+      '.problem-row',
+    ) as NodeListOf<HTMLTableRowElement>;
+    const firstDelete = rows[0]?.querySelector(
+      '.delete-button',
+    ) as HTMLButtonElement;
+    const secondDelete = rows[1]?.querySelector(
+      '.delete-button',
+    ) as HTMLButtonElement;
+    expect(firstDelete.disabled).toBe(true);
+    expect(firstDelete.textContent).toContain('Deleting');
+    expect(
+      (rows[0]?.querySelector('.edit-button') as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(secondDelete.disabled).toBe(false);
+    expect(rows[0]?.querySelector('[role="alert"]')?.textContent).toContain(
+      'could not be deleted',
+    );
+  });
+
+  it('removes only the deleted problem from expansion state', () => {
+    const fixture = createFixture([completeProblem, nullableProblem]);
+    fixture.componentInstance.toggle('12');
+    fixture.componentInstance.toggle('13');
+
+    fixture.componentInstance.removeExpanded('12');
+
+    expect(fixture.componentInstance.isExpanded('12')).toBe(false);
+    expect(fixture.componentInstance.isExpanded('13')).toBe(true);
+  });
 });

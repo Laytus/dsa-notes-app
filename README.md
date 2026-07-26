@@ -15,8 +15,8 @@ The project has a working monorepo foundation:
 - a local PostgreSQL Docker Compose service;
 - workspace-wide validation commands.
 
-Problem deletion, duplication, inline editing, and automatic review-count
-behavior have not been implemented yet.
+Problem duplication, inline editing, and automatic review-count behavior have
+not been implemented yet.
 
 ## Main features planned for the MVP
 
@@ -413,6 +413,21 @@ the deterministic name and exact decimal-ID ordering, and preserve row expansion
 state. Opening Create, another Edit panel, or closing a dirty panel requires
 discard confirmation. Automatic coupling between Times solved and Last reviewed
 remains deferred to the dedicated review-action phase.
+
+## Delete Problem workflow
+
+Each row includes a **Delete** action. Deletion requires confirmation naming the
+Problem and calls `DELETE /api/problems/:id` with its decimal-string ID. A dirty
+editor for that same Problem uses a combined confirmation that also warns about
+discarding unsaved changes. Deleting another Problem never closes a dirty Edit
+or Create panel.
+
+Only the pending row's Edit and Delete actions are disabled. A successful
+request removes the Problem locally without reloading Problems, Categories, or
+Tags, removes only its expansion state, and focuses Add Problem when available.
+If Add Problem is disabled, focus moves to the Problems heading. Failures retain
+the Problem and expansion state and show a safe row-level message; a `404`
+remains visible locally rather than being treated as an implicit success.
 
 ## Validation
 
