@@ -25,12 +25,6 @@ h2 {
   font-size: 1.5rem;
 }
 
-.problem-count {
-  margin: 0;
-  color: #52606d;
-  font-size: 0.875rem;
-}
-
 .heading-actions {
   display: flex;
   align-items: center;
@@ -132,15 +126,148 @@ button:focus-visible {
   flex: none;
 }
 
+.filter-toolbar {
+  margin-bottom: 1rem;
+  border: 1px solid #bcccdc;
+  border-radius: 0.75rem;
+  background: #f8fafc;
+  padding: 1rem;
+}
+
+.filter-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.filter-heading h3 {
+  margin: 0;
+  color: #243b53;
+  font-size: 1rem;
+}
+
+.filter-help,
+.filter-placeholder,
+.filter-unavailable {
+  margin: 0.25rem 0 0;
+  color: #627d98;
+  font-size: 0.8rem;
+}
+
+.filter-unavailable {
+  color: #744210;
+}
+
+.filter-controls {
+  display: grid;
+  grid-template-columns: minmax(13rem, 2fr) repeat(3, minmax(9rem, 1fr));
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+.filter-control {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.35rem;
+  color: #334e68;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.filter-control input,
+.filter-control select {
+  min-width: 0;
+  border: 1px solid #9fb3c8;
+  border-radius: 0.4rem;
+  background: #fff;
+  color: #102a43;
+  font: inherit;
+  font-weight: 400;
+  padding: 0.55rem 0.65rem;
+}
+
+.filter-control input:focus-visible,
+.filter-control select:focus-visible,
+.tag-options input:focus-visible {
+  outline: 3px solid #62b0e8;
+  outline-offset: 2px;
+}
+
+.tag-filters {
+  grid-column: 1 / -1;
+  min-width: 0;
+  margin: 0;
+  border: 1px solid #d9e2ec;
+  border-radius: 0.5rem;
+  padding: 0.65rem 0.75rem 0.75rem;
+}
+
+.tag-filters legend {
+  color: #334e68;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0 0.25rem;
+}
+
+.tag-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 1rem;
+  margin-top: 0.6rem;
+}
+
+.tag-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #334e68;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.tag-filters:disabled .tag-options label {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.result-count {
+  margin: 0.85rem 0 0;
+  color: #52606d;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.no-match-state {
+  flex-direction: column;
+  margin-bottom: 1rem;
+}
+
 @media (max-width: 600px) {
   .section-heading,
   .heading-actions,
-  .warning {
+  .warning,
+  .filter-heading {
     align-items: stretch;
     flex-direction: column;
   }
 
   .availability-note {
     text-align: left;
+  }
+
+  .filter-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tag-filters {
+    grid-column: auto;
+  }
+}
+
+@media (min-width: 601px) and (max-width: 950px) {
+  .filter-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

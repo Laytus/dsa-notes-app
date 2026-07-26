@@ -34,6 +34,47 @@ const problem: Problem = {
   updatedAt: '2026-07-25T18:30:00.000Z',
 };
 
+const categoryResources: readonly CategoryResource[] = [
+  {
+    id: '1',
+    name: 'Arrays',
+    createdAt: '2026-07-25T18:00:00.000Z',
+    updatedAt: '2026-07-25T18:00:00.000Z',
+  },
+  {
+    id: '2',
+    name: 'Dinámica',
+    createdAt: '2026-07-25T18:00:00.000Z',
+    updatedAt: '2026-07-25T18:00:00.000Z',
+  },
+];
+
+const tagResources: readonly TagResource[] = [
+  {
+    id: '10',
+    name: 'Array',
+    createdAt: '2026-07-25T18:00:00.000Z',
+    updatedAt: '2026-07-25T18:00:00.000Z',
+  },
+  {
+    id: '20',
+    name: 'Hash Map',
+    createdAt: '2026-07-25T18:00:00.000Z',
+    updatedAt: '2026-07-25T18:00:00.000Z',
+  },
+];
+
+const dynamicProblem: Problem = {
+  ...problem,
+  id: '9007199254740993',
+  name: 'House Robber',
+  category: { id: '2', name: 'Dinámica' },
+  difficulty: null,
+  status: 'Needs review',
+  tags: [{ id: '10', name: 'Array' }],
+  notes: 'Use the **recurrencia** relation.',
+};
+
 describe('ProblemListPage', () => {
   let problemsSubject: Subject<readonly Problem[]>;
   let categoriesSubject: Subject<readonly CategoryResource[]>;
@@ -97,6 +138,27 @@ describe('ProblemListPage', () => {
     categoriesSubject.complete();
     tagsSubject.next([]);
     tagsSubject.complete();
+  }
+
+  function completeLoadedPage(
+    loadedProblems: readonly Problem[] = [problem, dynamicProblem],
+  ): void {
+    problemsSubject.next(loadedProblems);
+    problemsSubject.complete();
+    categoriesSubject.next(categoryResources);
+    categoriesSubject.complete();
+    tagsSubject.next(tagResources);
+    tagsSubject.complete();
+  }
+
+  function changeControl(
+    element: HTMLInputElement | HTMLSelectElement,
+    value: string,
+  ): void {
+    element.value = value;
+    element.dispatchEvent(
+      new Event(element instanceof HTMLSelectElement ? 'change' : 'input'),
+    );
   }
 
   it('shows loading until the initial requests resolve, then renders the table', () => {
@@ -1194,5 +1256,316 @@ describe('ProblemListPage', () => {
 
     expect(updateProblem).toHaveBeenCalledTimes(2);
     expect(fixture.componentInstance.problems()).toEqual([reviewed]);
+  });
+
+  it('renders an accessible filter toolbar with complete domain options', () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completeLoadedPage();
+    fixture.detectChanges();
+
+    const search = fixture.nativeElement.querySelector(
+      'input[type="search"]',
+    ) as HTMLInputElement;
+    expect(search.labels?.[0]?.textContent).toContain('Search problems');
+
+    const selects = fixture.nativeElement.querySelectorAll(
+      '.filter-control select',
+    ) as NodeListOf<HTMLSelectElement>;
+    expect(Array.from(selects[0]?.options ?? [], ({ text }) => text)).toEqual([
+      'All categories',
+      'Arrays',
+      'Dinámica',
+    ]);
+    expect(Array.from(selects[1]?.options ?? [], ({ text }) => text)).toEqual([
+      'All difficulties',
+      'Easy',
+      'Medium',
+      'Hard',
+      'Unspecified',
+    ]);
+    expect(Array.from(selects[2]?.options ?? [], ({ text }) => text)).toEqual([
+      'All statuses',
+      'To solve',
+      'Attempted',
+      'Solved',
+      'Needs review',
+      'Mastered',
+    ]);
+    expect(
+      fixture.nativeElement.querySelector('.tag-filters legend').textContent,
+    ).toContain('Tags');
+    expect(
+      fixture.nativeElement.querySelectorAll(
+        '.tag-filters input[type="checkbox"]',
+      ),
+    ).toHaveLength(2);
+    expect(fixture.nativeElement.textContent).toContain(
+      'Match any selected tag.',
+    );
+    expect(
+      (fixture.nativeElement.querySelector('.clear-filters') as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+  });
+
+  it('filters normalized search text locally across hydrated fields', () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completeLoadedPage();
+    fixture.detectChanges();
+    const search = fixture.nativeElement.querySelector(
+      'input[type="search"]',
+    ) as HTMLInputElement;
+
+    changeControl(search, '  DINAMICA  ');
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.problems()).toHaveLength(2);
+    expect(fixture.componentInstance.filteredProblems()).toEqual([
+      dynamicProblem,
+    ]);
+    expect(fixture.nativeElement.textContent).toContain('1 of 2 problems');
+    expect(getProblems).toHaveBeenCalledTimes(1);
+    expect(getCategories).toHaveBeenCalledTimes(1);
+    expect(getTags).toHaveBeenCalledTimes(1);
+  });
+
+  it('combines filter groups with AND while selected tags use OR', () => {
+    const hashProblem: Problem = {
+      ...problem,
+      id: '3',
+      name: 'Map Practice',
+      tags: [{ id: '20', name: 'Hash Map' }],
+    };
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completeLoadedPage([problem, dynamicProblem, hashProblem]);
+    fixture.detectChanges();
+
+    const selects = fixture.nativeElement.querySelectorAll(
+      '.filter-control select',
+    ) as NodeListOf<HTMLSelectElement>;
+    changeControl(selects[0]!, '1');
+    changeControl(selects[2]!, 'Solved');
+    const tagInputs = fixture.nativeElement.querySelectorAll(
+      '.tag-filters input',
+    ) as NodeListOf<HTMLInputElement>;
+    tagInputs[0]!.click();
+    tagInputs[1]!.click();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.selectedTagIds()).toEqual(['10', '20']);
+    expect(
+      fixture.componentInstance.filteredProblems().map(({ id }) => id),
+    ).toEqual(['3']);
+  });
+
+  it('distinguishes no matches from a true empty collection and clears locally', () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completeLoadedPage();
+    fixture.detectChanges();
+
+    changeControl(
+      fixture.nativeElement.querySelector('input[type="search"]'),
+      'not present',
+    );
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain(
+      'No problems match the current search and filters.',
+    );
+    expect(fixture.nativeElement.textContent).not.toContain(
+      'No problems have been added yet.',
+    );
+    expect(fixture.nativeElement.querySelector('app-problem-table').hidden).toBe(
+      true,
+    );
+    (
+      fixture.nativeElement.querySelector(
+        '.no-match-state button',
+      ) as HTMLButtonElement
+    ).click();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.filtersActive()).toBe(false);
+    expect(fixture.componentInstance.filteredProblems()).toHaveLength(2);
+    expect(fixture.nativeElement.querySelector('app-problem-table').hidden).toBe(
+      false,
+    );
+    expect(getProblems).toHaveBeenCalledTimes(1);
+  });
+
+  it('clears every criterion without changing canonical or pending state', () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completeLoadedPage();
+    fixture.detectChanges();
+    fixture.componentInstance.searchQuery.set('house');
+    fixture.componentInstance.selectedCategoryId.set('2');
+    fixture.componentInstance.selectedDifficulty.set('unspecified');
+    fixture.componentInstance.selectedStatus.set('Needs review');
+    fixture.componentInstance.selectedTagIds.set(['10']);
+    fixture.componentInstance.deletingIds.set(new Set(['1']));
+    fixture.componentInstance.reviewingIds.set(
+      new Set(['9007199254740993']),
+    );
+    const canonical = fixture.componentInstance.problems();
+
+    fixture.componentInstance.clearFilters();
+
+    expect(fixture.componentInstance.filters()).toEqual({
+      query: '',
+      categoryId: null,
+      difficulty: null,
+      status: null,
+      tagIds: [],
+    });
+    expect(fixture.componentInstance.problems()).toBe(canonical);
+    expect(fixture.componentInstance.deletingIds().has('1')).toBe(true);
+    expect(
+      fixture.componentInstance.reviewingIds().has('9007199254740993'),
+    ).toBe(true);
+  });
+
+  it('preserves expansion while a filter temporarily hides the row', () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completeLoadedPage();
+    fixture.detectChanges();
+    const table = fixture.debugElement.query(
+      By.directive(ProblemTable),
+    ).componentInstance as ProblemTable;
+    table.toggle(problem.id);
+    fixture.detectChanges();
+
+    fixture.componentInstance.searchQuery.set('house');
+    fixture.detectChanges();
+    expect(table.isExpanded(problem.id)).toBe(true);
+    expect(
+      fixture.nativeElement.querySelector('[data-problem-id="1"]'),
+    ).toBeNull();
+
+    fixture.componentInstance.clearFilters();
+    fixture.detectChanges();
+    expect(
+      fixture.nativeElement.querySelector(
+        '[data-problem-id="1"] + .details-row',
+      ),
+    ).not.toBeNull();
+  });
+
+  it('disables only the unavailable auxiliary filter and keeps others usable', () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    problemsSubject.next([problem, dynamicProblem]);
+    problemsSubject.complete();
+    categoriesSubject.error(new Error('private categories error'));
+    tagsSubject.next(tagResources);
+    tagsSubject.complete();
+    fixture.detectChanges();
+
+    const selects = fixture.nativeElement.querySelectorAll(
+      '.filter-control select',
+    ) as NodeListOf<HTMLSelectElement>;
+    expect(selects[0]?.disabled).toBe(true);
+    expect(selects[1]?.disabled).toBe(false);
+    expect(selects[2]?.disabled).toBe(false);
+    expect(
+      (fixture.nativeElement.querySelector('.tag-filters') as HTMLFieldSetElement)
+        .disabled,
+    ).toBe(false);
+    expect(fixture.nativeElement.textContent).toContain(
+      'Category filtering is unavailable',
+    );
+
+    changeControl(selects[1]!, 'unspecified');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.filteredProblems()).toEqual([
+      dynamicProblem,
+    ]);
+  });
+
+  it('disables only tag filtering when tags fail and preserves loaded problems', () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    problemsSubject.next([problem, dynamicProblem]);
+    problemsSubject.complete();
+    categoriesSubject.next(categoryResources);
+    categoriesSubject.complete();
+    tagsSubject.error(new Error('private tags error'));
+    fixture.detectChanges();
+
+    expect(
+      (fixture.nativeElement.querySelector('.tag-filters') as HTMLFieldSetElement)
+        .disabled,
+    ).toBe(true);
+    expect(
+      (
+        fixture.nativeElement.querySelector(
+          '.filter-control select',
+        ) as HTMLSelectElement
+      ).disabled,
+    ).toBe(false);
+    expect(fixture.nativeElement.textContent).toContain(
+      'Tag filtering is unavailable',
+    );
+    expect(fixture.componentInstance.problems()).toHaveLength(2);
+  });
+
+  it('keeps canonical create and edit updates derived under active filters', () => {
+    const created: Problem = { ...problem, id: '3', name: 'Hidden Graph' };
+    const edited: Problem = {
+      ...dynamicProblem,
+      name: 'Visible Array Problem',
+      category: { id: '1', name: 'Arrays' },
+    };
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completeLoadedPage();
+    fixture.detectChanges();
+    fixture.componentInstance.selectedCategoryId.set('2');
+
+    fixture.componentInstance.onProblemSaved(created);
+    expect(fixture.componentInstance.problems()).toContainEqual(created);
+    expect(fixture.componentInstance.filteredProblems()).not.toContainEqual(
+      created,
+    );
+
+    fixture.componentInstance.openEditPanel(dynamicProblem);
+    fixture.componentInstance.onProblemSaved(edited);
+    expect(fixture.componentInstance.problems()).toContainEqual(edited);
+    expect(fixture.componentInstance.filteredProblems()).toEqual([]);
+  });
+
+  it('changes filters without closing dirty Create or Edit panels or confirming', () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completeLoadedPage();
+    fixture.detectChanges();
+    const confirm = vi.spyOn(window, 'confirm');
+    fixture.componentInstance.openCreatePanel();
+    fixture.detectChanges();
+    const createPanel = fixture.debugElement.query(
+      By.directive(ProblemFormPanel),
+    ).componentInstance as ProblemFormPanel;
+    createPanel.form.controls.name.setValue('Unsaved create');
+    createPanel.form.controls.name.markAsDirty();
+
+    changeControl(
+      fixture.nativeElement.querySelector('input[type="search"]'),
+      'house',
+    );
+    expect(fixture.componentInstance.activePanel()?.mode).toBe('create');
+    expect(createPanel.form.controls.name.value).toBe('Unsaved create');
+    expect(confirm).not.toHaveBeenCalled();
+
+    fixture.componentInstance.activePanel.set({
+      mode: 'edit',
+      problem: dynamicProblem,
+    });
+    fixture.detectChanges();
+    const editPanel = fixture.debugElement.query(
+      By.directive(ProblemFormPanel),
+    ).componentInstance as ProblemFormPanel;
+    editPanel.form.controls.notes.setValue('Unsaved edit');
+    editPanel.form.controls.notes.markAsDirty();
+    fixture.componentInstance.selectedStatus.set('Solved');
+
+    expect(fixture.componentInstance.activePanel()?.mode).toBe('edit');
+    expect(editPanel.form.controls.notes.value).toBe('Unsaved edit');
+    expect(confirm).not.toHaveBeenCalled();
+    confirm.mockRestore();
   });
 });

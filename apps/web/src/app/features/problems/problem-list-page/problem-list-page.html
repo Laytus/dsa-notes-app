@@ -6,11 +6,6 @@
     </div>
 
     <div class="heading-actions">
-      @if (!loading() && !error() && problems().length > 0) {
-        <p class="problem-count">
-          {{ problems().length }} {{ problems().length === 1 ? 'problem' : 'problems' }}
-        </p>
-      }
       <button
         #addProblemButton
         type="button"
@@ -59,8 +54,144 @@
         <p>No problems have been added yet.</p>
       </div>
     } @else {
+      <section class="filter-toolbar" aria-labelledby="filter-title">
+        <div class="filter-heading">
+          <div>
+            <h3 id="filter-title">Search and filters</h3>
+            <p class="filter-help">
+              Search names, categories, tags, and raw notes. Selected tags match
+              any tag.
+            </p>
+          </div>
+          <button
+            type="button"
+            class="clear-filters"
+            [disabled]="!filtersActive()"
+            (click)="clearFilters()"
+          >
+            Clear filters
+          </button>
+        </div>
+
+        <div class="filter-controls">
+          <label class="filter-control search-control">
+            <span>Search problems</span>
+            <input
+              type="search"
+              [value]="searchQuery()"
+              placeholder="Name, category, tag, or notes"
+              (input)="setSearchQuery($event)"
+            />
+          </label>
+
+          <label class="filter-control">
+            <span>Category</span>
+            <select
+              [value]="selectedCategoryId() ?? ''"
+              [disabled]="!categoriesAvailable()"
+              [attr.aria-describedby]="
+                categoriesAvailable() ? null : 'category-filter-unavailable'
+              "
+              (change)="setCategoryFilter($event)"
+            >
+              <option value="">All categories</option>
+              @for (category of categories(); track category.id) {
+                <option [value]="category.id">{{ category.name }}</option>
+              }
+            </select>
+          </label>
+
+          <label class="filter-control">
+            <span>Difficulty</span>
+            <select
+              [value]="selectedDifficulty() ?? ''"
+              (change)="setDifficultyFilter($event)"
+            >
+              <option value="">All difficulties</option>
+              @for (difficulty of difficulties; track difficulty) {
+                <option [value]="difficulty">{{ difficulty }}</option>
+              }
+              <option value="unspecified">Unspecified</option>
+            </select>
+          </label>
+
+          <label class="filter-control">
+            <span>Status</span>
+            <select
+              [value]="selectedStatus() ?? ''"
+              (change)="setStatusFilter($event)"
+            >
+              <option value="">All statuses</option>
+              @for (status of statuses; track status) {
+                <option [value]="status">{{ status }}</option>
+              }
+            </select>
+          </label>
+
+          <fieldset
+            class="tag-filters"
+            [disabled]="!tagsAvailable()"
+            [attr.aria-describedby]="
+              tagsAvailable()
+                ? 'tag-filter-help'
+                : 'tag-filter-help tag-filter-unavailable'
+            "
+          >
+            <legend>Tags</legend>
+            <p id="tag-filter-help" class="filter-help">
+              Match any selected tag.
+            </p>
+            @if (tags().length > 0) {
+              <div class="tag-options">
+                @for (tag of tags(); track tag.id) {
+                  <label>
+                    <input
+                      type="checkbox"
+                      [checked]="selectedTagIds().includes(tag.id)"
+                      (change)="setTagFilter(tag.id, $event)"
+                    />
+                    <span>{{ tag.name }}</span>
+                  </label>
+                }
+              </div>
+            } @else {
+              <p class="filter-placeholder">No tags available.</p>
+            }
+          </fieldset>
+        </div>
+
+        @if (!categoriesAvailable()) {
+          <p id="category-filter-unavailable" class="filter-unavailable">
+            Category filtering is unavailable until categories are reloaded.
+          </p>
+        }
+        @if (!tagsAvailable()) {
+          <p id="tag-filter-unavailable" class="filter-unavailable">
+            Tag filtering is unavailable until tags are reloaded.
+          </p>
+        }
+
+        <p class="result-count" role="status" aria-live="polite">
+          @if (filtersActive()) {
+            {{ filteredProblems().length }} of {{ problems().length }}
+            {{ problems().length === 1 ? 'problem' : 'problems' }}
+          } @else {
+            {{ problems().length }}
+            {{ problems().length === 1 ? 'problem' : 'problems' }}
+          }
+        </p>
+      </section>
+
+      @if (filteredProblems().length === 0) {
+        <div class="state-card no-match-state">
+          <p>No problems match the current search and filters.</p>
+          <button type="button" (click)="clearFilters()">Clear filters</button>
+        </div>
+      }
+
       <app-problem-table
-        [problems]="problems()"
+        [hidden]="filteredProblems().length === 0"
+        [problems]="filteredProblems()"
         [editableIds]="editableIds()"
         [deletingIds]="deletingIds()"
         [deleteErrors]="deleteErrors()"

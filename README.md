@@ -360,8 +360,31 @@ Markdown. Date-only `lastReviewedOn` values are displayed exactly as returned
 by the API, avoiding timezone conversion.
 
 Solution and Source use the API-provided labels and URLs, open in a new tab,
-and include safe `rel` attributes. Editing uses the side panel; inline editing,
-search, and filtering are not implemented.
+and include safe `rel` attributes. Editing uses the side panel; inline editing
+is not implemented.
+
+## Problem search and filters
+
+The Problems toolbar filters the already loaded collection locally without
+issuing API requests. Search matches partial text across Problem names,
+Category names, Tag names, and raw Notes. It is case-insensitive and
+diacritic-insensitive, so `dinamica` matches `Dinámica`; Notes remain plain raw
+text and are not rendered as Markdown in this phase.
+
+Category, Difficulty, Status, and Tags can be combined with search. Difficulty
+includes an explicit **Unspecified** option for Problems whose value is `null`.
+Selected Tags use the product-defined OR behavior: a Problem matches when it
+contains any selected Tag. The separate filter groups combine with AND.
+
+The result summary distinguishes filtered and total counts. **Clear filters**
+resets only filter state, while canonical Problems, expanded rows, dirty forms,
+pending actions, and row errors remain unchanged. A filtered collection with no
+matches has its own no-match state and does not replace the true empty-library
+state.
+
+If Categories or Tags fail to load, only the corresponding filter is disabled.
+Search and the other available filters remain usable, loaded Problems remain
+visible, and the existing reference-data retry remains available.
 
 ## Create Problem workflow
 

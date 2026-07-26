@@ -560,6 +560,32 @@ Filtering and sorting functions must remain pure and independently testable.
 
 The application must not perform a backend request per search input change.
 
+The initial filtering implementation keeps the loaded Problems collection as
+canonical signal state and derives visible Problems with a computed signal.
+Search normalizes the trimmed query and each searchable field with Unicode NFD,
+combining-mark removal, and lowercase conversion. It searches the hydrated
+Problem name, Category name, Tag names, and raw Notes without rendering
+Markdown.
+
+Category IDs and Status values match exactly. Difficulty uses a distinct
+`unspecified` view-state sentinel so the domain's `null` value is not confused
+with the All-difficulties selection. Selected Tag IDs use OR semantics within
+the Tag group; search, Category, Difficulty, Status, and that Tag group combine
+with AND. Filtering preserves canonical ordering and never issues a request.
+
+Expansion remains keyed by Problem ID inside the mounted table component.
+Filtering may hide an expanded row, but revealing it restores the expanded
+details. Create, Edit, Delete, and Review continue to update canonical state,
+so the computed view and result counts react without a reload or filter reset.
+Dirty panels, pending action state, and row errors are independent view state
+and are not changed by filter controls.
+
+A failed Categories or Tags request disables only its corresponding filter.
+Other filters and loaded Problems remain available, and the existing
+reference-data retry owns recovery. After a successful reference-data load,
+selected IDs that no longer exist in the returned collection are removed only
+from their corresponding filter.
+
 ## 12. Frontend state
 
 The initial implementation should prefer straightforward Angular state management:

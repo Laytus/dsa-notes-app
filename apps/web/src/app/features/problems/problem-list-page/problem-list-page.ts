@@ -13,12 +13,19 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { catchError, forkJoin, of } from 'rxjs';
 import type {
   CategoryResource,
+  Difficulty,
   Problem,
+  ProblemStatus,
   TagResource,
 } from '../../../core/api/api.models';
 import { CategoriesApiService } from '../../../core/api/categories-api.service';
 import { ProblemsApiService } from '../../../core/api/problems-api.service';
 import { TagsApiService } from '../../../core/api/tags-api.service';
+import {
+  filterProblems,
+  type DifficultyFilter,
+  type ProblemFilters,
+} from '../problem-filters';
 import { ProblemFormPanel } from '../problem-form-panel/problem-form-panel';
 import {
   formatLocalDate,
@@ -72,12 +79,45 @@ export class ProblemListPage {
   readonly warning = signal<string | null>(null);
   readonly categoriesAvailable = signal(true);
   readonly tagsAvailable = signal(true);
+  readonly searchQuery = signal('');
+  readonly selectedCategoryId = signal<string | null>(null);
+  readonly selectedDifficulty = signal<DifficultyFilter>(null);
+  readonly selectedStatus = signal<ProblemStatus | null>(null);
+  readonly selectedTagIds = signal<readonly string[]>([]);
   readonly activePanel = signal<ActivePanel | null>(null);
   readonly successMessage = signal<string | null>(null);
   readonly deletingIds = signal<ReadonlySet<string>>(new Set());
   readonly deleteErrors = signal<ReadonlyMap<string, string>>(new Map());
   readonly reviewingIds = signal<ReadonlySet<string>>(new Set());
   readonly reviewErrors = signal<ReadonlyMap<string, string>>(new Map());
+  readonly difficulties: readonly Difficulty[] = ['Easy', 'Medium', 'Hard'];
+  readonly statuses: readonly ProblemStatus[] = [
+    'To solve',
+    'Attempted',
+    'Solved',
+    'Needs review',
+    'Mastered',
+  ];
+  readonly filters = computed<ProblemFilters>(() => ({
+    query: this.searchQuery(),
+    categoryId: this.selectedCategoryId(),
+    difficulty: this.selectedDifficulty(),
+    status: this.selectedStatus(),
+    tagIds: this.selectedTagIds(),
+  }));
+  readonly filteredProblems = computed(() =>
+    filterProblems(this.problems(), this.filters()),
+  );
+  readonly filtersActive = computed(() => {
+    const filters = this.filters();
+    return (
+      filters.query.trim().length > 0 ||
+      filters.categoryId !== null ||
+      filters.difficulty !== null ||
+      filters.status !== null ||
+      filters.tagIds.length > 0
+    );
+  });
   readonly canCreate = computed(
     () =>
       !this.loading() &&
@@ -163,6 +203,7 @@ export class ProblemListPage {
           this.problems.set(problems);
           this.categories.set(categories);
           this.tags.set(tags);
+          this.reconcileReferenceFilters(categories, tags);
           this.loading.set(false);
         },
         error: () => {
@@ -198,7 +239,50 @@ export class ProblemListPage {
       .subscribe(({ categories, tags }) => {
         this.categories.set(categories);
         this.tags.set(tags);
+        this.reconcileReferenceFilters(categories, tags);
       });
+  }
+
+  setSearchQuery(event: Event): void {
+    this.searchQuery.set(this.inputValue(event));
+  }
+
+  setCategoryFilter(event: Event): void {
+    this.selectedCategoryId.set(this.optionalSelectValue(event));
+  }
+
+  setDifficultyFilter(event: Event): void {
+    const value = this.inputValue(event);
+    this.selectedDifficulty.set(
+      value === ''
+        ? null
+        : (value as Exclude<DifficultyFilter, null>),
+    );
+  }
+
+  setStatusFilter(event: Event): void {
+    const value = this.inputValue(event);
+    this.selectedStatus.set(
+      value === '' ? null : (value as ProblemStatus),
+    );
+  }
+
+  setTagFilter(tagId: string, event: Event): void {
+    const checked = (event.target as HTMLInputElement).checked;
+    this.selectedTagIds.update((current) => {
+      if (checked) {
+        return current.includes(tagId) ? current : [...current, tagId];
+      }
+      return current.filter((id) => id !== tagId);
+    });
+  }
+
+  clearFilters(): void {
+    this.searchQuery.set('');
+    this.selectedCategoryId.set(null);
+    this.selectedDifficulty.set(null);
+    this.selectedStatus.set(null);
+    this.selectedTagIds.set([]);
   }
 
   openCreatePanel(): void {
@@ -336,6 +420,36 @@ export class ProblemListPage {
 
   private canSwitchPanel(): boolean {
     return this.activePanel() === null || (this.formPanel()?.canDiscardChanges() ?? true);
+  }
+
+  private inputValue(event: Event): string {
+    return (event.target as HTMLInputElement | HTMLSelectElement).value;
+  }
+
+  private optionalSelectValue(event: Event): string | null {
+    const value = this.inputValue(event);
+    return value === '' ? null : value;
+  }
+
+  private reconcileReferenceFilters(
+    categories: readonly CategoryResource[],
+    tags: readonly TagResource[],
+  ): void {
+    const categoryId = this.selectedCategoryId();
+    if (
+      this.categoriesAvailable() &&
+      categoryId !== null &&
+      !categories.some(({ id }) => id === categoryId)
+    ) {
+      this.selectedCategoryId.set(null);
+    }
+
+    if (this.tagsAvailable()) {
+      const availableTagIds = new Set(tags.map(({ id }) => id));
+      this.selectedTagIds.update((selected) =>
+        selected.filter((id) => availableTagIds.has(id)),
+      );
+    }
   }
 
   private clearDeleting(id: string): void {
