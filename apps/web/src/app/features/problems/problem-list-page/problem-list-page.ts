@@ -20,6 +20,11 @@ import { CategoriesApiService } from '../../../core/api/categories-api.service';
 import { ProblemsApiService } from '../../../core/api/problems-api.service';
 import { TagsApiService } from '../../../core/api/tags-api.service';
 import { ProblemFormPanel } from '../problem-form-panel/problem-form-panel';
+import {
+  formatLocalDate,
+  LOCAL_DATE_SOURCE,
+  POSTGRES_INTEGER_MAX,
+} from '../problem-review';
 import { ProblemTable } from '../problem-table/problem-table';
 
 function compareProblems(left: Problem, right: Problem): number {
@@ -51,6 +56,7 @@ export class ProblemListPage {
   private readonly categoriesApi = inject(CategoriesApiService);
   private readonly tagsApi = inject(TagsApiService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly currentLocalDate = inject(LOCAL_DATE_SOURCE);
   private readonly addProblemButton =
     viewChild<ElementRef<HTMLButtonElement>>('addProblemButton');
   private readonly problemsHeading =
@@ -70,6 +76,8 @@ export class ProblemListPage {
   readonly successMessage = signal<string | null>(null);
   readonly deletingIds = signal<ReadonlySet<string>>(new Set());
   readonly deleteErrors = signal<ReadonlyMap<string, string>>(new Map());
+  readonly reviewingIds = signal<ReadonlySet<string>>(new Set());
+  readonly reviewErrors = signal<ReadonlyMap<string, string>>(new Map());
   readonly canCreate = computed(
     () =>
       !this.loading() &&
@@ -93,6 +101,32 @@ export class ProblemListPage {
         .filter(({ category }) => categoryIds.has(category.id))
         .map(({ id }) => id),
     );
+  });
+  readonly reviewDisabledReasons = computed<ReadonlyMap<string, string>>(() => {
+    const active = this.activePanel();
+    const reasons = new Map<string, string>();
+    for (const problem of this.problems()) {
+      if (!Number.isInteger(problem.timesSolved) || problem.timesSolved < 0) {
+        reasons.set(
+          problem.id,
+          'Mark reviewed is unavailable because Times solved is invalid.',
+        );
+      } else if (problem.timesSolved >= POSTGRES_INTEGER_MAX) {
+        reasons.set(
+          problem.id,
+          'Mark reviewed is unavailable because Times solved has reached its maximum.',
+        );
+      } else if (
+        active?.mode === 'edit' &&
+        active.problem.id === problem.id
+      ) {
+        reasons.set(
+          problem.id,
+          'Mark reviewed is unavailable while this problem is open for editing.',
+        );
+      }
+    }
+    return reasons;
   });
 
   constructor() {
@@ -177,6 +211,7 @@ export class ProblemListPage {
 
   openEditPanel(problem: Problem): void {
     if (!this.editableIds().has(problem.id)) return;
+    if (this.reviewingIds().has(problem.id)) return;
     const active = this.activePanel();
     if (active?.mode === 'edit' && active.problem.id === problem.id) return;
     if (!this.canSwitchPanel()) return;
@@ -198,13 +233,12 @@ export class ProblemListPage {
 
   onProblemSaved(problem: Problem): void {
     const mode = this.activePanel()?.mode;
-    this.problems.update((current) => {
-      const next =
-        mode === 'edit'
-          ? current.map((item) => (item.id === problem.id ? problem : item))
-          : [...current, problem];
-      return [...next].sort(compareProblems);
-    });
+    if (mode === 'edit') this.replaceProblem(problem);
+    else {
+      this.problems.update((current) =>
+        [...current, problem].sort(compareProblems),
+      );
+    }
     this.successMessage.set(
       mode === 'edit'
         ? `${problem.name} was updated.`
@@ -215,6 +249,7 @@ export class ProblemListPage {
 
   requestDelete(problem: Problem): void {
     if (this.deletingIds().has(problem.id)) return;
+    if (this.reviewingIds().has(problem.id)) return;
 
     const active = this.activePanel();
     const discardsDirtyEdit =
@@ -234,6 +269,8 @@ export class ProblemListPage {
       .subscribe({
         next: () => {
           this.clearDeleting(problem.id);
+          this.clearReviewing(problem.id);
+          this.clearReviewError(problem.id);
           this.problemTable()?.removeExpanded(problem.id);
           this.problems.update((current) =>
             current.filter(({ id }) => id !== problem.id),
@@ -263,6 +300,40 @@ export class ProblemListPage {
       });
   }
 
+  requestReview(problem: Problem): void {
+    if (
+      this.reviewingIds().has(problem.id) ||
+      this.deletingIds().has(problem.id) ||
+      this.reviewDisabledReasons().has(problem.id)
+    ) {
+      return;
+    }
+
+    this.clearReviewError(problem.id);
+    this.reviewingIds.update((current) => new Set(current).add(problem.id));
+    this.problemsApi
+      .updateProblem(problem.id, {
+        timesSolved: problem.timesSolved + 1,
+        lastReviewedOn: formatLocalDate(this.currentLocalDate()),
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (reviewedProblem) => {
+          this.clearReviewing(problem.id);
+          this.replaceProblem(reviewedProblem);
+          this.successMessage.set(`${reviewedProblem.name} was marked reviewed.`);
+        },
+        error: (error: unknown) => {
+          this.clearReviewing(problem.id);
+          this.reviewErrors.update((current) => {
+            const next = new Map(current);
+            next.set(problem.id, this.reviewErrorMessage(error));
+            return next;
+          });
+        },
+      });
+  }
+
   private canSwitchPanel(): boolean {
     return this.activePanel() === null || (this.formPanel()?.canDiscardChanges() ?? true);
   }
@@ -283,6 +354,30 @@ export class ProblemListPage {
     });
   }
 
+  private clearReviewing(id: string): void {
+    this.reviewingIds.update((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
+  }
+
+  private clearReviewError(id: string): void {
+    this.reviewErrors.update((current) => {
+      const next = new Map(current);
+      next.delete(id);
+      return next;
+    });
+  }
+
+  private replaceProblem(problem: Problem): void {
+    this.problems.update((current) =>
+      current
+        .map((item) => (item.id === problem.id ? problem : item))
+        .sort(compareProblems),
+    );
+  }
+
   private deleteErrorMessage(error: unknown): string {
     if (error instanceof HttpErrorResponse) {
       if (error.status === 0) {
@@ -293,5 +388,20 @@ export class ProblemListPage {
       }
     }
     return 'The problem could not be deleted. Try again.';
+  }
+
+  private reviewErrorMessage(error: unknown): string {
+    if (error instanceof HttpErrorResponse) {
+      if (error.status === 0) {
+        return 'Could not connect to the API. The review was not saved.';
+      }
+      if (error.status === 404) {
+        return 'This problem no longer exists on the server. Refresh or try again.';
+      }
+      if (error.status === 400) {
+        return 'The review values were rejected. Refresh and try again.';
+      }
+    }
+    return 'The problem could not be marked reviewed. Try again.';
   }
 }

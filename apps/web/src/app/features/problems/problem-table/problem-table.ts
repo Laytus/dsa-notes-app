@@ -20,8 +20,14 @@ export class ProblemTable {
   readonly editableIds = input<ReadonlySet<string>>(new Set());
   readonly deletingIds = input<ReadonlySet<string>>(new Set());
   readonly deleteErrors = input<ReadonlyMap<string, string>>(new Map());
+  readonly reviewingIds = input<ReadonlySet<string>>(new Set());
+  readonly reviewErrors = input<ReadonlyMap<string, string>>(new Map());
+  readonly reviewDisabledReasons = input<ReadonlyMap<string, string>>(
+    new Map(),
+  );
   readonly editRequested = output<Problem>();
   readonly deleteRequested = output<Problem>();
+  readonly reviewRequested = output<Problem>();
   readonly expandedIds = signal<ReadonlySet<string>>(new Set());
   private readonly editButtons =
     viewChildren<ElementRef<HTMLButtonElement>>('editButton');

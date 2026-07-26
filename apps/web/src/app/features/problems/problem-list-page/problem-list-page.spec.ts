@@ -11,6 +11,10 @@ import { CategoriesApiService } from '../../../core/api/categories-api.service';
 import { ProblemsApiService } from '../../../core/api/problems-api.service';
 import { TagsApiService } from '../../../core/api/tags-api.service';
 import { ProblemFormPanel } from '../problem-form-panel/problem-form-panel';
+import {
+  LOCAL_DATE_SOURCE,
+  POSTGRES_INTEGER_MAX,
+} from '../problem-review';
 import { ProblemTable } from '../problem-table/problem-table';
 import { ProblemListPage } from './problem-list-page';
 
@@ -75,6 +79,14 @@ describe('ProblemListPage', () => {
         {
           provide: TagsApiService,
           useValue: { getTags },
+        },
+        {
+          provide: LOCAL_DATE_SOURCE,
+          useValue: () => ({
+            getFullYear: () => 2026,
+            getMonth: () => 0,
+            getDate: () => 5,
+          }),
         },
       ],
     }).compileComponents();
@@ -842,5 +854,345 @@ describe('ProblemListPage', () => {
     expect(deleteProblem).toHaveBeenCalledTimes(2);
     expect(fixture.componentInstance.problems()).toEqual([]);
     confirm.mockRestore();
+  });
+
+  it('sends one exact partial review PATCH and replaces the hydrated problem', () => {
+    const reviewedProblem: Problem = {
+      ...problem,
+      id: '9007199254740993',
+      name: 'Same Name',
+      timesSolved: 2,
+      lastReviewedOn: '2025-12-01',
+    };
+    const otherProblem: Problem = {
+      ...problem,
+      id: '2',
+      name: 'same name',
+    };
+    const hydratedReview: Problem = {
+      ...reviewedProblem,
+      timesSolved: 3,
+      lastReviewedOn: '2026-01-05',
+      updatedAt: '2026-07-25T20:00:00.000Z',
+    };
+    const reviewResponse = new Subject<Problem>();
+    updateProblem.mockReturnValue(reviewResponse);
+    const fixture = TestBed.createComponent(ProblemListPage);
+    problemsSubject.next([reviewedProblem, otherProblem]);
+    problemsSubject.complete();
+    completeAuxiliaryLoads();
+    fixture.detectChanges();
+    const table = fixture.debugElement.query(
+      By.directive(ProblemTable),
+    ).componentInstance as ProblemTable;
+    table.toggle(reviewedProblem.id);
+    table.toggle(otherProblem.id);
+    fixture.detectChanges();
+    const reviewedRow = fixture.nativeElement.querySelector(
+      `[data-problem-id="${reviewedProblem.id}"]`,
+    ) as HTMLTableRowElement;
+    const reviewButton = reviewedRow.querySelector(
+      '.review-button',
+    ) as HTMLButtonElement;
+    reviewButton.focus();
+
+    reviewButton.click();
+    fixture.detectChanges();
+    fixture.componentInstance.requestReview(reviewedProblem);
+
+    expect(updateProblem).toHaveBeenCalledTimes(1);
+    expect(updateProblem).toHaveBeenCalledWith('9007199254740993', {
+      timesSolved: 3,
+      lastReviewedOn: '2026-01-05',
+    });
+    expect(reviewButton.disabled).toBe(true);
+    expect(reviewButton.textContent).toContain('Updating');
+    expect(
+      (
+        fixture.nativeElement.querySelector(
+          '[data-problem-id="2"] .review-button',
+        ) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
+
+    reviewResponse.next(hydratedReview);
+    reviewResponse.complete();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.problems()).toEqual([
+      otherProblem,
+      hydratedReview,
+    ]);
+    expect(fixture.componentInstance.problems()).toHaveLength(2);
+    expect(getProblems).toHaveBeenCalledTimes(1);
+    expect(getCategories).toHaveBeenCalledTimes(1);
+    expect(getTags).toHaveBeenCalledTimes(1);
+    expect(table.isExpanded(reviewedProblem.id)).toBe(true);
+    expect(table.isExpanded(otherProblem.id)).toBe(true);
+    expect(document.activeElement?.getAttribute('aria-label')).toBe(
+      'Mark Same Name reviewed',
+    );
+  });
+
+  it('increments zero and sets a null review date to the local date', () => {
+    const unreviewed: Problem = {
+      ...problem,
+      timesSolved: 0,
+      lastReviewedOn: null,
+    };
+    const reviewResponse = new Subject<Problem>();
+    updateProblem.mockReturnValue(reviewResponse);
+    const fixture = TestBed.createComponent(ProblemListPage);
+    problemsSubject.next([unreviewed]);
+    problemsSubject.complete();
+    completeAuxiliaryLoads();
+    fixture.detectChanges();
+
+    (
+      fixture.nativeElement.querySelector('.review-button') as HTMLButtonElement
+    ).click();
+
+    expect(updateProblem).toHaveBeenCalledWith('1', {
+      timesSolved: 1,
+      lastReviewedOn: '2026-01-05',
+    });
+  });
+
+  it('prevents review when the PostgreSQL integer maximum is reached', () => {
+    const maximumProblem: Problem = {
+      ...problem,
+      timesSolved: POSTGRES_INTEGER_MAX,
+    };
+    const fixture = TestBed.createComponent(ProblemListPage);
+    problemsSubject.next([maximumProblem]);
+    problemsSubject.complete();
+    completeAuxiliaryLoads();
+    fixture.detectChanges();
+    const reviewButton = fixture.nativeElement.querySelector(
+      '.review-button',
+    ) as HTMLButtonElement;
+
+    expect(reviewButton.disabled).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain(
+      'Times solved has reached its maximum',
+    );
+    fixture.componentInstance.requestReview(maximumProblem);
+    expect(updateProblem).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.problems()).toEqual([maximumProblem]);
+  });
+
+  it('blocks review for the actively edited problem', () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    problemsSubject.next([problem]);
+    problemsSubject.complete();
+    categoriesSubject.next([
+      {
+        id: '1',
+        name: 'Arrays',
+        createdAt: '2026-07-25T18:00:00.000Z',
+        updatedAt: '2026-07-25T18:00:00.000Z',
+      },
+    ]);
+    categoriesSubject.complete();
+    tagsSubject.next([]);
+    tagsSubject.complete();
+    fixture.detectChanges();
+    (
+      fixture.nativeElement.querySelector('.edit-button') as HTMLButtonElement
+    ).click();
+    fixture.detectChanges();
+    const reviewButton = fixture.nativeElement.querySelector(
+      '.review-button',
+    ) as HTMLButtonElement;
+
+    expect(reviewButton.disabled).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain(
+      'open for editing',
+    );
+    fixture.componentInstance.requestReview(problem);
+    expect(updateProblem).not.toHaveBeenCalled();
+  });
+
+  it('reviews another problem without disturbing a dirty Edit panel', () => {
+    const secondProblem: Problem = { ...problem, id: '2', name: 'Three Sum' };
+    const reviewResponse = new Subject<Problem>();
+    updateProblem.mockReturnValue(reviewResponse);
+    const fixture = TestBed.createComponent(ProblemListPage);
+    problemsSubject.next([problem, secondProblem]);
+    problemsSubject.complete();
+    categoriesSubject.next([
+      {
+        id: '1',
+        name: 'Arrays',
+        createdAt: '2026-07-25T18:00:00.000Z',
+        updatedAt: '2026-07-25T18:00:00.000Z',
+      },
+    ]);
+    categoriesSubject.complete();
+    tagsSubject.next([]);
+    tagsSubject.complete();
+    fixture.detectChanges();
+    const rows = fixture.nativeElement.querySelectorAll(
+      '.problem-row',
+    ) as NodeListOf<HTMLTableRowElement>;
+    (rows[0]?.querySelector('.edit-button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const panel = fixture.debugElement.query(
+      By.directive(ProblemFormPanel),
+    ).componentInstance as ProblemFormPanel;
+    panel.form.controls.name.setValue('Unsaved edit');
+    panel.form.controls.name.markAsDirty();
+    const confirm = vi.spyOn(window, 'confirm');
+
+    (rows[1]?.querySelector('.review-button') as HTMLButtonElement).click();
+
+    expect(updateProblem).toHaveBeenCalledTimes(1);
+    expect(confirm).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.activePanel()).toEqual({
+      mode: 'edit',
+      problem,
+    });
+    expect(panel.form.controls.name.value).toBe('Unsaved edit');
+    confirm.mockRestore();
+  });
+
+  it('reviews while preserving a dirty Create panel', () => {
+    const reviewResponse = new Subject<Problem>();
+    updateProblem.mockReturnValue(reviewResponse);
+    const fixture = TestBed.createComponent(ProblemListPage);
+    problemsSubject.next([problem]);
+    problemsSubject.complete();
+    categoriesSubject.next([
+      {
+        id: '1',
+        name: 'Arrays',
+        createdAt: '2026-07-25T18:00:00.000Z',
+        updatedAt: '2026-07-25T18:00:00.000Z',
+      },
+    ]);
+    categoriesSubject.complete();
+    tagsSubject.next([]);
+    tagsSubject.complete();
+    fixture.detectChanges();
+    (
+      fixture.nativeElement.querySelector('.add-button') as HTMLButtonElement
+    ).click();
+    fixture.detectChanges();
+    const panel = fixture.debugElement.query(
+      By.directive(ProblemFormPanel),
+    ).componentInstance as ProblemFormPanel;
+    panel.form.controls.name.setValue('Unsaved create');
+    panel.form.controls.name.markAsDirty();
+    const confirm = vi.spyOn(window, 'confirm');
+
+    (
+      fixture.nativeElement.querySelector('.review-button') as HTMLButtonElement
+    ).click();
+
+    expect(updateProblem).toHaveBeenCalledTimes(1);
+    expect(confirm).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.activePanel()?.mode).toBe('create');
+    expect(panel.form.controls.name.value).toBe('Unsaved create');
+    confirm.mockRestore();
+  });
+
+  it.each([
+    [
+      new HttpErrorResponse({
+        status: 404,
+        error: { error: { code: 'PROBLEM_NOT_FOUND', message: 'raw secret' } },
+      }),
+      'This problem no longer exists on the server.',
+    ],
+    [
+      new HttpErrorResponse({
+        status: 400,
+        error: {
+          error: { code: 'INVALID_TIMES_SOLVED', message: 'raw validation' },
+        },
+      }),
+      'The review values were rejected.',
+    ],
+    [
+      new HttpErrorResponse({ status: 0, statusText: 'Network Error' }),
+      'Could not connect to the API.',
+    ],
+    [new Error('database secret'), 'The problem could not be marked reviewed.'],
+  ])('preserves review state and shows a safe failure for %s', (failure, message) => {
+    const original: Problem = {
+      ...problem,
+      timesSolved: 4,
+      lastReviewedOn: '2025-12-01',
+    };
+    const reviewResponse = new Subject<Problem>();
+    updateProblem.mockReturnValue(reviewResponse);
+    const fixture = TestBed.createComponent(ProblemListPage);
+    problemsSubject.next([original]);
+    problemsSubject.complete();
+    completeAuxiliaryLoads();
+    fixture.detectChanges();
+    const table = fixture.debugElement.query(
+      By.directive(ProblemTable),
+    ).componentInstance as ProblemTable;
+    table.toggle(original.id);
+    fixture.detectChanges();
+
+    (
+      fixture.nativeElement.querySelector('.review-button') as HTMLButtonElement
+    ).click();
+    reviewResponse.error(failure);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.problems()).toEqual([original]);
+    expect(fixture.componentInstance.reviewingIds().has(original.id)).toBe(
+      false,
+    );
+    expect(table.isExpanded(original.id)).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain(message);
+    expect(fixture.nativeElement.textContent).not.toContain('raw secret');
+    expect(fixture.nativeElement.textContent).not.toContain('raw validation');
+    expect(fixture.nativeElement.textContent).not.toContain('database secret');
+  });
+
+  it('clears a previous review error when retry succeeds', () => {
+    const firstResponse = new Subject<Problem>();
+    updateProblem.mockReturnValue(firstResponse);
+    const fixture = TestBed.createComponent(ProblemListPage);
+    problemsSubject.next([problem]);
+    problemsSubject.complete();
+    completeAuxiliaryLoads();
+    fixture.detectChanges();
+
+    (
+      fixture.nativeElement.querySelector('.review-button') as HTMLButtonElement
+    ).click();
+    firstResponse.error(
+      new HttpErrorResponse({ status: 500, statusText: 'Server Error' }),
+    );
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain(
+      'The problem could not be marked reviewed.',
+    );
+
+    const retryResponse = new Subject<Problem>();
+    updateProblem.mockReturnValue(retryResponse);
+    (
+      fixture.nativeElement.querySelector('.review-button') as HTMLButtonElement
+    ).click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).not.toContain(
+      'The problem could not be marked reviewed.',
+    );
+    const reviewed = {
+      ...problem,
+      timesSolved: 2,
+      lastReviewedOn: '2026-01-05',
+    };
+    retryResponse.next(reviewed);
+    retryResponse.complete();
+    fixture.detectChanges();
+
+    expect(updateProblem).toHaveBeenCalledTimes(2);
+    expect(fixture.componentInstance.problems()).toEqual([reviewed]);
   });
 });

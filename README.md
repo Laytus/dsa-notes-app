@@ -15,8 +15,7 @@ The project has a working monorepo foundation:
 - a local PostgreSQL Docker Compose service;
 - workspace-wide validation commands.
 
-Problem duplication, inline editing, and automatic review-count behavior have
-not been implemented yet.
+Problem duplication and inline editing have not been implemented yet.
 
 ## Main features planned for the MVP
 
@@ -343,9 +342,9 @@ When a link label is omitted, Solution uses `View solution` and Source uses
 
 `PATCH` uses true partial-update semantics. Supplying `tagIds` replaces the
 complete tag set, while omitted fields remain unchanged. Invalid category or
-tag references return `400` using the stable error envelope. Automatic
-`Times solved`/`Last reviewed` behavior remains deferred to the dedicated
-review-semantics phase.
+tag references return `400` using the stable error envelope. The explicit Mark
+reviewed action updates `Times solved` and `Last reviewed` together; automatic
+coupling for arbitrary edits remains deferred.
 
 ## Read-only Problems screen
 
@@ -362,7 +361,7 @@ by the API, avoiding timezone conversion.
 
 Solution and Source use the API-provided labels and URLs, open in a new tab,
 and include safe `rel` attributes. Editing uses the side panel; inline editing,
-deletion, search, filtering, and review actions are not implemented.
+search, and filtering are not implemented.
 
 ## Create Problem workflow
 
@@ -412,7 +411,8 @@ Successful saves replace the matching hydrated Problem in local state, reapply
 the deterministic name and exact decimal-ID ordering, and preserve row expansion
 state. Opening Create, another Edit panel, or closing a dirty panel requires
 discard confirmation. Automatic coupling between Times solved and Last reviewed
-remains deferred to the dedicated review-action phase.
+for arbitrary form edits remains deferred; use Mark reviewed for the explicit
+coupled action.
 
 ## Delete Problem workflow
 
@@ -428,6 +428,24 @@ Tags, removes only its expansion state, and focuses Add Problem when available.
 If Add Problem is disabled, focus moves to the Problems heading. Failures retain
 the Problem and expansion state and show a safe row-level message; a `404`
 remains visible locally rather than being treated as an implicit success.
+
+## Problem Review workflow
+
+Each row includes **Mark reviewed**. It sends a partial
+`PATCH /api/problems/:id` containing only the incremented `timesSolved` and the
+user's current local calendar date as `lastReviewedOn`. The date is built from
+local year, month, and day components rather than a UTC ISO string.
+
+Review is unavailable while that Problem is open in Edit, being deleted, or
+already being reviewed. While pending, only that row's Review, Edit, and Delete
+actions are disabled. Dirty Create state and an editor for another Problem are
+not changed.
+
+The maximum PostgreSQL integer value is `2147483647`. At that value, Mark
+reviewed is disabled and sends no request. Successful review uses the hydrated
+API response to replace the local Problem without reloading data or changing
+expansion state. Failures preserve the count, date, forms, and expansion state
+and show a safe row-level message that can be cleared by retrying.
 
 ## Validation
 

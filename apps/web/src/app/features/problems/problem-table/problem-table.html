@@ -82,19 +82,25 @@
               [attr.data-problem-id]="problem.id"
               [attr.aria-label]="'Edit ' + problem.name"
               [attr.aria-describedby]="
-                editableIds().has(problem.id) && !deletingIds().has(problem.id)
+                editableIds().has(problem.id) &&
+                !deletingIds().has(problem.id) &&
+                !reviewingIds().has(problem.id)
                   ? null
                   : 'edit-unavailable-' + problem.id
               "
               [disabled]="
-                !editableIds().has(problem.id) || deletingIds().has(problem.id)
+                !editableIds().has(problem.id) ||
+                deletingIds().has(problem.id) ||
+                reviewingIds().has(problem.id)
               "
               (click)="editRequested.emit(problem)"
             >
               Edit
             </button>
             @if (
-              !editableIds().has(problem.id) || deletingIds().has(problem.id)
+              !editableIds().has(problem.id) ||
+                deletingIds().has(problem.id) ||
+                reviewingIds().has(problem.id)
             ) {
               <span
                 class="visually-hidden"
@@ -103,9 +109,48 @@
                 {{
                   deletingIds().has(problem.id)
                     ? 'Editing is unavailable while this problem is being deleted.'
-                    : 'Editing is unavailable because the current category is not loaded.'
+                    : reviewingIds().has(problem.id)
+                      ? 'Editing is unavailable while this problem is being reviewed.'
+                      : 'Editing is unavailable because the current category is not loaded.'
                 }}
               </span>
+            }
+            <button
+              type="button"
+              class="review-button"
+              [attr.aria-label]="'Mark ' + problem.name + ' reviewed'"
+              [attr.aria-describedby]="
+                reviewErrors().has(problem.id)
+                  ? 'review-error-' + problem.id
+                  : reviewDisabledReasons().has(problem.id)
+                    ? 'review-disabled-' + problem.id
+                    : null
+              "
+              [disabled]="
+                reviewingIds().has(problem.id) ||
+                deletingIds().has(problem.id) ||
+                reviewDisabledReasons().has(problem.id)
+              "
+              (click)="reviewRequested.emit(problem)"
+            >
+              {{ reviewingIds().has(problem.id) ? 'Updating…' : 'Mark reviewed' }}
+            </button>
+            @if (reviewDisabledReasons().get(problem.id); as disabledReason) {
+              <span
+                class="visually-hidden"
+                [id]="'review-disabled-' + problem.id"
+              >
+                {{ disabledReason }}
+              </span>
+            }
+            @if (reviewErrors().get(problem.id); as reviewError) {
+              <p
+                class="action-error"
+                [id]="'review-error-' + problem.id"
+                role="alert"
+              >
+                {{ reviewError }}
+              </p>
             }
             <button
               type="button"
@@ -116,14 +161,16 @@
                   ? 'delete-error-' + problem.id
                   : null
               "
-              [disabled]="deletingIds().has(problem.id)"
+              [disabled]="
+                deletingIds().has(problem.id) || reviewingIds().has(problem.id)
+              "
               (click)="deleteRequested.emit(problem)"
             >
               {{ deletingIds().has(problem.id) ? 'Deleting…' : 'Delete' }}
             </button>
             @if (deleteErrors().get(problem.id); as deleteError) {
               <p
-                class="delete-error"
+                class="action-error"
                 [id]="'delete-error-' + problem.id"
                 role="alert"
               >

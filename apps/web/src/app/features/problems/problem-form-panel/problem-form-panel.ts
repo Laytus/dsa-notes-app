@@ -33,6 +33,7 @@ import type {
   UpdateProblemRequest,
 } from '../../../core/api/api.models';
 import { ProblemsApiService } from '../../../core/api/problems-api.service';
+import { POSTGRES_INTEGER_MAX } from '../problem-review';
 
 const SOLUTION_DEFAULT_LABEL = 'View solution';
 const SOURCE_DEFAULT_LABEL = 'LeetCode';
@@ -64,7 +65,7 @@ export function nonnegativeInteger(
   return value !== null &&
     Number.isInteger(value) &&
     value >= 0 &&
-    value <= 2_147_483_647
+    value <= POSTGRES_INTEGER_MAX
     ? null
     : { nonnegativeInteger: true };
 }

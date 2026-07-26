@@ -64,8 +64,12 @@
         [editableIds]="editableIds()"
         [deletingIds]="deletingIds()"
         [deleteErrors]="deleteErrors()"
+        [reviewingIds]="reviewingIds()"
+        [reviewErrors]="reviewErrors()"
+        [reviewDisabledReasons]="reviewDisabledReasons()"
         (editRequested)="openEditPanel($event)"
         (deleteRequested)="requestDelete($event)"
+        (reviewRequested)="requestReview($event)"
       />
     }
   }

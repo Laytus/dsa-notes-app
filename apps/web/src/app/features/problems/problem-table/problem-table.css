@@ -143,6 +143,7 @@ a {
 }
 
 .edit-button,
+.review-button,
 .delete-button {
   border: 1px solid #486581;
   border-radius: 0.35rem;
@@ -154,6 +155,12 @@ a {
   padding: 0.4rem 0.65rem;
 }
 
+.review-button {
+  margin-left: 0.45rem;
+  border-color: #2680c2;
+  color: #0b69a3;
+}
+
 .delete-button {
   margin-left: 0.45rem;
   border-color: #c52727;
@@ -161,18 +168,20 @@ a {
 }
 
 .edit-button:focus-visible,
+.review-button:focus-visible,
 .delete-button:focus-visible {
   outline: 3px solid #62b0e8;
   outline-offset: 2px;
 }
 
 .edit-button:disabled,
+.review-button:disabled,
 .delete-button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }
 
-.delete-error {
+.action-error {
   min-width: 12rem;
   margin: 0.4rem 0 0;
   color: #a61b1b;

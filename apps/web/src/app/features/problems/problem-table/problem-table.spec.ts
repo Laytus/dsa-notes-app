@@ -266,4 +266,74 @@ describe('ProblemTable', () => {
     expect(fixture.componentInstance.isExpanded('12')).toBe(false);
     expect(fixture.componentInstance.isExpanded('13')).toBe(true);
   });
+
+  it('exposes an accessible Mark reviewed action for every problem', () => {
+    const fixture = createFixture([completeProblem, nullableProblem]);
+    const emitted = vi.fn();
+    fixture.componentInstance.reviewRequested.subscribe(emitted);
+    const buttons = fixture.nativeElement.querySelectorAll(
+      '.review-button',
+    ) as NodeListOf<HTMLButtonElement>;
+
+    expect(buttons).toHaveLength(2);
+    expect(buttons[0]?.getAttribute('aria-label')).toBe(
+      'Mark Two Sum reviewed',
+    );
+    expect(buttons[1]?.getAttribute('aria-label')).toBe(
+      'Mark Empty fields reviewed',
+    );
+    buttons[0]?.click();
+    expect(emitted).toHaveBeenCalledWith(completeProblem);
+  });
+
+  it('isolates pending review state and its accessible error to one row', () => {
+    const fixture = createFixture([completeProblem, nullableProblem]);
+    fixture.componentRef.setInput('reviewingIds', new Set(['12']));
+    fixture.componentRef.setInput(
+      'reviewErrors',
+      new Map([['12', 'The review was not saved.']]),
+    );
+    fixture.detectChanges();
+    const rows = fixture.nativeElement.querySelectorAll(
+      '.problem-row',
+    ) as NodeListOf<HTMLTableRowElement>;
+    const firstReview = rows[0]?.querySelector(
+      '.review-button',
+    ) as HTMLButtonElement;
+    const secondReview = rows[1]?.querySelector(
+      '.review-button',
+    ) as HTMLButtonElement;
+
+    expect(firstReview.disabled).toBe(true);
+    expect(firstReview.textContent).toContain('Updating');
+    expect(
+      (rows[0]?.querySelector('.edit-button') as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(
+      (rows[0]?.querySelector('.delete-button') as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(secondReview.disabled).toBe(false);
+    expect(rows[0]?.querySelector('[role="alert"]')?.textContent).toContain(
+      'review was not saved',
+    );
+  });
+
+  it('communicates why a review action is unavailable', () => {
+    const fixture = createFixture();
+    fixture.componentRef.setInput(
+      'reviewDisabledReasons',
+      new Map([['12', 'Times solved has reached its maximum.']]),
+    );
+    fixture.detectChanges();
+    const button = fixture.nativeElement.querySelector(
+      '.review-button',
+    ) as HTMLButtonElement;
+    const descriptionId = button.getAttribute('aria-describedby');
+
+    expect(button.disabled).toBe(true);
+    expect(descriptionId).not.toBeNull();
+    expect(
+      fixture.nativeElement.querySelector(`#${descriptionId}`).textContent,
+    ).toContain('maximum');
+  });
 });

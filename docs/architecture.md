@@ -107,6 +107,24 @@ The page clears pending state on both success and failure. Network, `404`, and
 unexpected failures use stable safe text; `404` does not remove local state
 implicitly, and retry clears the prior row error before the next request.
 
+Mark reviewed is an explicit frontend command using the existing partial PATCH
+contract. It sends only `timesSolved + 1` and `lastReviewedOn`, with the latter
+formatted from injected local calendar getters. A focused local-date function
+keeps UTC conversion out of the action and makes boundary behavior deterministic
+in tests. The shared PostgreSQL integer maximum prevents overflow before a
+request.
+
+The Problems page owns immutable per-Problem reviewing IDs and review-error
+maps, separately from deletion state. A pending review disables Review, Edit,
+and Delete for that row only. Review is also disabled for the Problem currently
+open in Edit, avoiding a stale form overwriting the returned review values.
+Dirty Create state and an editor for another Problem remain untouched.
+
+The hydrated PATCH response replaces the matching Problem through the same
+immutable comparator-backed path used by Edit. ID-based Angular tracking keeps
+row expansion and Review-button focus stable. Review failures remain local to
+their row in an accessible live alert and never mutate the canonical Problem.
+
 ### Backend: Node.js, TypeScript, and Fastify
 
 Fastify is used for a minimal HTTP API because:
