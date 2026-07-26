@@ -7,8 +7,10 @@ import {
   ElementRef,
   inject,
   input,
+  OnChanges,
   output,
   signal,
+  type SimpleChanges,
   viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -28,6 +30,7 @@ import type {
   Problem,
   ProblemStatus,
   TagResource,
+  UpdateProblemRequest,
 } from '../../../core/api/api.models';
 import { ProblemsApiService } from '../../../core/api/problems-api.service';
 
@@ -116,24 +119,26 @@ function apiErrorCode(error: HttpErrorResponse): string | null {
 }
 
 @Component({
-  selector: 'app-create-problem-panel',
+  selector: 'app-problem-form-panel',
   imports: [ReactiveFormsModule],
-  templateUrl: './create-problem-panel.html',
-  styleUrl: './create-problem-panel.css',
+  templateUrl: './problem-form-panel.html',
+  styleUrl: './problem-form-panel.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class CreateProblemPanel implements AfterViewInit {
+export class ProblemFormPanel implements AfterViewInit, OnChanges {
   private readonly problemsApi = inject(ProblemsApiService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly nameInput =
-    viewChild.required<ElementRef<HTMLInputElement>>('nameInput');
+    viewChild<ElementRef<HTMLInputElement>>('nameInput');
   private readonly formElement =
     viewChild.required<ElementRef<HTMLFormElement>>('problemForm');
 
+  readonly mode = input<'create' | 'edit'>('create');
+  readonly problem = input<Problem | null>(null);
   readonly categories = input.required<readonly CategoryResource[]>();
   readonly tags = input.required<readonly TagResource[]>();
   readonly tagsAvailable = input.required<boolean>();
-  readonly created = output<Problem>();
+  readonly saved = output<Problem>();
   readonly closed = output<void>();
 
   readonly submitted = signal(false);
@@ -179,8 +184,14 @@ export class CreateProblemPanel implements AfterViewInit {
     }),
   });
 
+  ngOnChanges(changes: SimpleChanges): void {
+    if (!changes['mode'] && !changes['problem']) return;
+    this.resetForInputs();
+    queueMicrotask(() => this.nameInput()?.nativeElement.focus());
+  }
+
   ngAfterViewInit(): void {
-    this.nameInput().nativeElement.focus();
+    this.nameInput()?.nativeElement.focus();
   }
 
   showError(control: AbstractControl<unknown>): boolean {
@@ -198,15 +209,16 @@ export class CreateProblemPanel implements AfterViewInit {
     this.form.controls.tagIds.markAsDirty();
   }
 
+  canDiscardChanges(): boolean {
+    if (this.saving()) return false;
+    return (
+      !this.form.dirty ||
+      window.confirm('Discard the changes to this problem?')
+    );
+  }
+
   requestClose(): void {
-    if (this.saving()) return;
-    if (
-      this.form.dirty &&
-      !window.confirm('Discard the changes to this problem?')
-    ) {
-      return;
-    }
-    this.closed.emit();
+    if (this.canDiscardChanges()) this.closed.emit();
   }
 
   submit(): void {
@@ -227,33 +239,53 @@ export class CreateProblemPanel implements AfterViewInit {
 
     const request = this.toRequest();
     this.saving.set(true);
-    this.problemsApi
-      .createProblem(request)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (problem) => {
-          this.saving.set(false);
-          this.form.reset({
-            name: '',
-            categoryId: '',
-            difficulty: null,
-            status: 'To solve',
-            tagIds: [],
-            solutionUrl: '',
-            solutionLabel: SOLUTION_DEFAULT_LABEL,
-            sourceUrl: '',
-            sourceLabel: SOURCE_DEFAULT_LABEL,
-            notes: '',
-            timesSolved: 0,
-            lastReviewedOn: '',
-          });
-          this.created.emit(problem);
-        },
-        error: (error: unknown) => {
-          this.saving.set(false);
-          this.handleSaveError(error);
-        },
-      });
+    let response;
+    if (this.mode() === 'create') {
+      response = this.problemsApi.createProblem(request);
+    } else {
+      const problem = this.problem();
+      if (problem === null) {
+        this.saving.set(false);
+        this.saveError.set('The problem could not be updated.');
+        return;
+      }
+      response = this.problemsApi.updateProblem(
+        problem.id,
+        request satisfies UpdateProblemRequest,
+      );
+    }
+
+    response.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (savedProblem) => {
+        this.saving.set(false);
+        this.resetForInputs();
+        this.saved.emit(savedProblem);
+      },
+      error: (error: unknown) => {
+        this.saving.set(false);
+        this.handleSaveError(error);
+      },
+    });
+  }
+
+  private resetForInputs(): void {
+    const problem = this.mode() === 'edit' ? this.problem() : null;
+    this.form.reset({
+      name: problem?.name ?? '',
+      categoryId: problem?.category.id ?? '',
+      difficulty: problem?.difficulty ?? null,
+      status: problem?.status ?? 'To solve',
+      tagIds: problem?.tags.map(({ id }) => id) ?? [],
+      solutionUrl: problem?.solution?.url ?? '',
+      solutionLabel: problem?.solution?.label ?? SOLUTION_DEFAULT_LABEL,
+      sourceUrl: problem?.source?.url ?? '',
+      sourceLabel: problem?.source?.label ?? SOURCE_DEFAULT_LABEL,
+      notes: problem?.notes ?? '',
+      timesSolved: problem?.timesSolved ?? 0,
+      lastReviewedOn: problem?.lastReviewedOn ?? '',
+    });
+    this.submitted.set(false);
+    this.saveError.set(null);
   }
 
   private toRequest(): CreateProblemRequest {
@@ -275,7 +307,7 @@ export class CreateProblemPanel implements AfterViewInit {
         SOURCE_DEFAULT_LABEL,
       ),
       notes: value.notes,
-      timesSolved: value.timesSolved as number,
+      timesSolved: value.timesSolved ?? 0,
       lastReviewedOn: value.lastReviewedOn || null,
     };
   }
@@ -291,8 +323,9 @@ export class CreateProblemPanel implements AfterViewInit {
   }
 
   private handleSaveError(error: unknown): void {
+    const action = this.mode() === 'create' ? 'created' : 'updated';
     if (!(error instanceof HttpErrorResponse)) {
-      this.saveError.set('The problem could not be created.');
+      this.saveError.set(`The problem could not be ${action}.`);
       return;
     }
     if (error.status === 0) {
@@ -301,6 +334,11 @@ export class CreateProblemPanel implements AfterViewInit {
     }
 
     switch (apiErrorCode(error)) {
+      case 'PROBLEM_NOT_FOUND':
+        this.saveError.set(
+          'This problem no longer exists. Close the panel and refresh the list.',
+        );
+        break;
       case 'CATEGORY_REFERENCE_NOT_FOUND':
       case 'INVALID_CATEGORY_ID':
         this.form.controls.categoryId.setErrors({ serverReference: true });
@@ -326,7 +364,7 @@ export class CreateProblemPanel implements AfterViewInit {
         this.saveError.set('Review the form values and try again.');
         break;
       default:
-        this.saveError.set('The problem could not be created.');
+        this.saveError.set(`The problem could not be ${action}.`);
     }
   }
 }

@@ -140,6 +140,22 @@ legend {
   margin: 0;
 }
 
+.preserved-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.preserved-tags li {
+  border: 1px solid #bcccdc;
+  border-radius: 999px;
+  background: #f0f4f8;
+  padding: 0.4rem 0.65rem;
+}
+
 .field-error,
 .field-note,
 .form-error {

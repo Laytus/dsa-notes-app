@@ -49,6 +49,10 @@ describe('ProblemTable', () => {
   function createFixture(problems: readonly Problem[] = [completeProblem]) {
     const fixture = TestBed.createComponent(ProblemTable);
     fixture.componentRef.setInput('problems', problems);
+    fixture.componentRef.setInput(
+      'editableIds',
+      new Set(problems.map(({ id }) => id)),
+    );
     fixture.detectChanges();
     return fixture;
   }
@@ -71,6 +75,7 @@ describe('ProblemTable', () => {
       'Times solved',
       'Solution',
       'Source',
+      'Actions',
     ]);
     expect(fixture.nativeElement.textContent).toContain('Two Sum');
     expect(fixture.nativeElement.textContent).toContain('Arrays');
@@ -166,5 +171,44 @@ describe('ProblemTable', () => {
       fixture.nativeElement.querySelector('[data-problem-id="12"]'),
     ).toBe(originalRow);
     expect(originalRow.textContent).toContain('Two Sum updated');
+  });
+
+  it('exposes an accessible per-problem Edit action without changing expansion', () => {
+    const fixture = createFixture();
+    const component = fixture.componentInstance;
+    const emitted = vi.fn();
+    component.editRequested.subscribe(emitted);
+    const expandButton = fixture.nativeElement.querySelector(
+      '.expand-button',
+    ) as HTMLButtonElement;
+    expandButton.click();
+    fixture.detectChanges();
+
+    const editButton = fixture.nativeElement.querySelector(
+      '.edit-button',
+    ) as HTMLButtonElement;
+    expect(editButton.getAttribute('aria-label')).toBe('Edit Two Sum');
+    editButton.click();
+    expect(emitted).toHaveBeenCalledWith(completeProblem);
+    expect(component.isExpanded(completeProblem.id)).toBe(true);
+
+    component.focusEditButton(completeProblem.id);
+    expect(document.activeElement).toBe(editButton);
+  });
+
+  it('disables Edit with an accessible explanation when a category is unavailable', () => {
+    const fixture = createFixture();
+    fixture.componentRef.setInput('editableIds', new Set<string>());
+    fixture.detectChanges();
+
+    const editButton = fixture.nativeElement.querySelector(
+      '.edit-button',
+    ) as HTMLButtonElement;
+    const descriptionId = editButton.getAttribute('aria-describedby');
+    expect(editButton.disabled).toBe(true);
+    expect(descriptionId).not.toBeNull();
+    expect(
+      fixture.nativeElement.querySelector(`#${descriptionId}`).textContent,
+    ).toContain('current category is not loaded');
   });
 });

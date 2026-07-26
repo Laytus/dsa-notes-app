@@ -59,17 +59,23 @@
         <p>No problems have been added yet.</p>
       </div>
     } @else {
-      <app-problem-table [problems]="problems()" />
+      <app-problem-table
+        [problems]="problems()"
+        [editableIds]="editableIds()"
+        (editRequested)="openEditPanel($event)"
+      />
     }
   }
 </section>
 
-@if (createPanelOpen()) {
-  <app-create-problem-panel
+@if (activePanel(); as panel) {
+  <app-problem-form-panel
+    [mode]="panel.mode"
+    [problem]="panel.mode === 'edit' ? panel.problem : null"
     [categories]="categories()"
     [tags]="tags()"
     [tagsAvailable]="tagsAvailable()"
-    (created)="onProblemCreated($event)"
-    (closed)="closeCreatePanel()"
+    (saved)="onProblemSaved($event)"
+    (closed)="closePanel()"
   />
 }

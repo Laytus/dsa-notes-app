@@ -1,13 +1,17 @@
-<aside class="panel" aria-labelledby="create-problem-title">
+<aside class="panel" aria-labelledby="problem-form-title">
   <div class="panel-header">
     <div>
-      <p class="eyebrow">New record</p>
-      <h2 id="create-problem-title">Add problem</h2>
+      <p class="eyebrow">{{ mode() === 'create' ? 'New record' : 'Edit record' }}</p>
+      <h2 id="problem-form-title">
+        {{ mode() === 'create' ? 'Add problem' : 'Edit ' + (problem()?.name ?? 'problem') }}
+      </h2>
     </div>
     <button
       type="button"
       class="close-button"
-      aria-label="Close Add problem panel"
+      [attr.aria-label]="
+        mode() === 'create' ? 'Close Add problem panel' : 'Close Edit problem panel'
+      "
       [disabled]="saving()"
       (click)="requestClose()"
     >
@@ -85,7 +89,18 @@
 
     <fieldset class="tag-fieldset">
       <legend>Tags</legend>
-      @if (!tagsAvailable()) {
+      @if (!tagsAvailable() && mode() === 'edit') {
+        <p class="field-note">
+          Tags are unavailable. Existing tags are preserved and cannot be changed.
+        </p>
+        @if ((problem()?.tags?.length ?? 0) > 0) {
+          <ul class="preserved-tags" aria-label="Preserved tags">
+            @for (tag of problem()?.tags ?? []; track tag.id) {
+              <li>{{ tag.name }}</li>
+            }
+          </ul>
+        }
+      } @else if (!tagsAvailable()) {
         <p class="field-note">Tags are unavailable. You can still create without tags.</p>
       } @else if (tags().length === 0) {
         <p class="field-note">No tags are available.</p>
@@ -212,7 +227,15 @@
         Cancel
       </button>
       <button type="submit" class="primary-button" [disabled]="saving()">
-        {{ saving() ? 'Creating…' : 'Create problem' }}
+        {{
+          saving()
+            ? mode() === 'create'
+              ? 'Creating…'
+              : 'Saving…'
+            : mode() === 'create'
+              ? 'Create problem'
+              : 'Save changes'
+        }}
       </button>
     </div>
   </form>

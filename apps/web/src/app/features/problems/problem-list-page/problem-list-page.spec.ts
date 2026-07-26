@@ -9,7 +9,7 @@ import type {
 import { CategoriesApiService } from '../../../core/api/categories-api.service';
 import { ProblemsApiService } from '../../../core/api/problems-api.service';
 import { TagsApiService } from '../../../core/api/tags-api.service';
-import { CreateProblemPanel } from '../create-problem-panel/create-problem-panel';
+import { ProblemFormPanel } from '../problem-form-panel/problem-form-panel';
 import { ProblemListPage } from './problem-list-page';
 
 const problem: Problem = {
@@ -36,6 +36,7 @@ describe('ProblemListPage', () => {
   let getCategories: ReturnType<typeof vi.fn>;
   let getTags: ReturnType<typeof vi.fn>;
   let createProblem: ReturnType<typeof vi.fn>;
+  let updateProblem: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     problemsSubject = new Subject();
@@ -47,13 +48,14 @@ describe('ProblemListPage', () => {
     );
     getTags = vi.fn((): Observable<readonly TagResource[]> => tagsSubject);
     createProblem = vi.fn(() => of(problem));
+    updateProblem = vi.fn(() => of(problem));
 
     await TestBed.configureTestingModule({
       imports: [ProblemListPage],
       providers: [
         {
           provide: ProblemsApiService,
-          useValue: { getProblems, createProblem },
+          useValue: { getProblems, createProblem, updateProblem },
         },
         {
           provide: CategoriesApiService,
@@ -156,6 +158,10 @@ describe('ProblemListPage', () => {
       (fixture.nativeElement.querySelector('.add-button') as HTMLButtonElement)
         .disabled,
     ).toBe(true);
+    expect(
+      (fixture.nativeElement.querySelector('.edit-button') as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
     const retry = fixture.nativeElement.querySelector(
       '.warning button',
     ) as HTMLButtonElement;
@@ -193,9 +199,9 @@ describe('ProblemListPage', () => {
     expect(addButton.disabled).toBe(false);
     addButton.click();
     fixture.detectChanges();
-    const panelDebug = fixture.debugElement.query(By.directive(CreateProblemPanel));
+    const panelDebug = fixture.debugElement.query(By.directive(ProblemFormPanel));
     expect(panelDebug).not.toBeNull();
-    const panel = panelDebug.componentInstance as CreateProblemPanel;
+    const panel = panelDebug.componentInstance as ProblemFormPanel;
     panel.form.patchValue({ name: 'Array Basics', categoryId: '1' });
     panel.submit();
     fixture.detectChanges();
@@ -203,7 +209,7 @@ describe('ProblemListPage', () => {
     fixture.detectChanges();
 
     expect(createProblem).toHaveBeenCalledTimes(1);
-    expect(fixture.debugElement.query(By.directive(CreateProblemPanel))).toBeNull();
+    expect(fixture.debugElement.query(By.directive(ProblemFormPanel))).toBeNull();
     const names = Array.from(
       fixture.nativeElement.querySelectorAll('.problem-row .name-cell'),
       (cell: Element) => cell.textContent?.trim(),
@@ -225,7 +231,7 @@ describe('ProblemListPage', () => {
     problemsSubject.complete();
     completeAuxiliaryLoads();
 
-    fixture.componentInstance.onProblemCreated({
+    fixture.componentInstance.onProblemSaved({
       ...problem,
       id: '2',
       name: 'Same Name',
@@ -237,6 +243,203 @@ describe('ProblemListPage', () => {
       '9007199254740992',
       '9007199254740993',
     ]);
+  });
+
+  it('opens Edit with current values and replaces the saved problem without collapsing it', async () => {
+    const otherProblem: Problem = {
+      ...problem,
+      id: '2',
+      name: 'Binary Search',
+    };
+    const updated: Problem = {
+      ...problem,
+      name: 'Array Two Sum',
+      notes: 'Updated notes',
+      updatedAt: '2026-07-25T20:00:00.000Z',
+    };
+    updateProblem.mockReturnValue(of(updated));
+    const fixture = TestBed.createComponent(ProblemListPage);
+    problemsSubject.next([otherProblem, problem]);
+    problemsSubject.complete();
+    categoriesSubject.next([
+      {
+        id: '1',
+        name: 'Arrays',
+        createdAt: '2026-07-25T18:00:00.000Z',
+        updatedAt: '2026-07-25T18:00:00.000Z',
+      },
+    ]);
+    categoriesSubject.complete();
+    tagsSubject.next([]);
+    tagsSubject.complete();
+    fixture.detectChanges();
+
+    const row = fixture.nativeElement.querySelector(
+      '[data-problem-id="1"]',
+    ) as HTMLTableRowElement;
+    const expandButton = row.querySelector(
+      '.expand-button',
+    ) as HTMLButtonElement;
+    const editButton = row.querySelector('.edit-button') as HTMLButtonElement;
+    expandButton.click();
+    editButton.click();
+    fixture.detectChanges();
+
+    const panelDebug = fixture.debugElement.query(By.directive(ProblemFormPanel));
+    const panel = panelDebug.componentInstance as ProblemFormPanel;
+    expect(panel.mode()).toBe('edit');
+    expect(panel.form.controls.name.value).toBe('Two Sum');
+    expect(panel.form.controls.categoryId.value).toBe('1');
+    panel.form.controls.name.setValue('Array Two Sum');
+    panel.submit();
+    fixture.detectChanges();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    fixture.detectChanges();
+
+    expect(updateProblem).toHaveBeenCalledTimes(1);
+    expect(fixture.componentInstance.problems().map(({ id }) => id)).toEqual([
+      '1',
+      '2',
+    ]);
+    expect(fixture.componentInstance.problems()).toContainEqual(updated);
+    expect(fixture.componentInstance.problems()).toHaveLength(2);
+    expect(
+      fixture.nativeElement.querySelector(
+        '[data-problem-id="1"] + .details-row',
+      ),
+    ).not.toBeNull();
+    expect(fixture.nativeElement.textContent).toContain(
+      'Array Two Sum was updated.',
+    );
+    expect(document.activeElement?.getAttribute('aria-label')).toBe(
+      'Edit Array Two Sum',
+    );
+  });
+
+  it('reapplies exact numeric ID sorting after an update', () => {
+    const larger: Problem = { ...problem, id: '10', name: 'Same Name' };
+    const smaller: Problem = { ...problem, id: '2', name: 'Other' };
+    const fixture = TestBed.createComponent(ProblemListPage);
+    problemsSubject.next([larger, smaller]);
+    problemsSubject.complete();
+    categoriesSubject.next([
+      {
+        id: '1',
+        name: 'Arrays',
+        createdAt: '2026-07-25T18:00:00.000Z',
+        updatedAt: '2026-07-25T18:00:00.000Z',
+      },
+    ]);
+    categoriesSubject.complete();
+    tagsSubject.next([]);
+    tagsSubject.complete();
+    fixture.componentInstance.openEditPanel(smaller);
+
+    fixture.componentInstance.onProblemSaved({
+      ...problem,
+      id: '2',
+      name: 'same name',
+    });
+
+    expect(fixture.componentInstance.problems().map(({ id }) => id)).toEqual([
+      '2',
+      '10',
+    ]);
+  });
+
+  it('does not silently switch away from a dirty panel', () => {
+    const secondProblem: Problem = { ...problem, id: '2', name: 'Three Sum' };
+    const fixture = TestBed.createComponent(ProblemListPage);
+    problemsSubject.next([problem, secondProblem]);
+    problemsSubject.complete();
+    categoriesSubject.next([
+      {
+        id: '1',
+        name: 'Arrays',
+        createdAt: '2026-07-25T18:00:00.000Z',
+        updatedAt: '2026-07-25T18:00:00.000Z',
+      },
+    ]);
+    categoriesSubject.complete();
+    tagsSubject.next([]);
+    tagsSubject.complete();
+    fixture.detectChanges();
+
+    const editButtons = fixture.nativeElement.querySelectorAll(
+      '.edit-button',
+    ) as NodeListOf<HTMLButtonElement>;
+    editButtons[0]?.click();
+    fixture.detectChanges();
+    const panel = fixture.debugElement.query(
+      By.directive(ProblemFormPanel),
+    ).componentInstance as ProblemFormPanel;
+    panel.form.controls.name.markAsDirty();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+    editButtons[1]?.click();
+    expect(fixture.componentInstance.activePanel()).toEqual({
+      mode: 'edit',
+      problem,
+    });
+
+    confirm.mockReturnValue(true);
+    editButtons[1]?.click();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.activePanel()).toEqual({
+      mode: 'edit',
+      problem: secondProblem,
+    });
+
+    const switchedPanel = fixture.debugElement.query(
+      By.directive(ProblemFormPanel),
+    ).componentInstance as ProblemFormPanel;
+    switchedPanel.form.controls.name.markAsDirty();
+    confirm.mockReturnValue(false);
+    (
+      fixture.nativeElement.querySelector('.add-button') as HTMLButtonElement
+    ).click();
+    expect(fixture.componentInstance.activePanel()?.mode).toBe('edit');
+    confirm.mockRestore();
+  });
+
+  it('does not silently replace a dirty Create panel with Edit', () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    problemsSubject.next([problem]);
+    problemsSubject.complete();
+    categoriesSubject.next([
+      {
+        id: '1',
+        name: 'Arrays',
+        createdAt: '2026-07-25T18:00:00.000Z',
+        updatedAt: '2026-07-25T18:00:00.000Z',
+      },
+    ]);
+    categoriesSubject.complete();
+    tagsSubject.next([]);
+    tagsSubject.complete();
+    fixture.detectChanges();
+
+    (
+      fixture.nativeElement.querySelector('.add-button') as HTMLButtonElement
+    ).click();
+    fixture.detectChanges();
+    const panel = fixture.debugElement.query(
+      By.directive(ProblemFormPanel),
+    ).componentInstance as ProblemFormPanel;
+    panel.form.controls.name.markAsDirty();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+    (
+      fixture.nativeElement.querySelector('.edit-button') as HTMLButtonElement
+    ).click();
+    expect(fixture.componentInstance.activePanel()?.mode).toBe('create');
+
+    confirm.mockReturnValue(true);
+    (
+      fixture.nativeElement.querySelector('.edit-button') as HTMLButtonElement
+    ).click();
+    expect(fixture.componentInstance.activePanel()?.mode).toBe('edit');
+    confirm.mockRestore();
   });
 
   it('keeps creation available when only tags fail', () => {
@@ -263,6 +466,39 @@ describe('ProblemListPage', () => {
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain(
       'You can still create without tags.',
+    );
+  });
+
+  it('allows editing with unavailable tags while preserving current tag IDs', () => {
+    const taggedProblem: Problem = {
+      ...problem,
+      tags: [{ id: '20', name: 'Hash Map' }],
+    };
+    const fixture = TestBed.createComponent(ProblemListPage);
+    problemsSubject.next([taggedProblem]);
+    problemsSubject.complete();
+    categoriesSubject.next([
+      {
+        id: '1',
+        name: 'Arrays',
+        createdAt: '2026-07-25T18:00:00.000Z',
+        updatedAt: '2026-07-25T18:00:00.000Z',
+      },
+    ]);
+    categoriesSubject.complete();
+    tagsSubject.error(new Error('tags unavailable'));
+    fixture.detectChanges();
+
+    (
+      fixture.nativeElement.querySelector('.edit-button') as HTMLButtonElement
+    ).click();
+    fixture.detectChanges();
+    const panel = fixture.debugElement.query(
+      By.directive(ProblemFormPanel),
+    ).componentInstance as ProblemFormPanel;
+    expect(panel.form.controls.tagIds.value).toEqual(['20']);
+    expect(fixture.nativeElement.textContent).toContain(
+      'Existing tags are preserved',
     );
   });
 });

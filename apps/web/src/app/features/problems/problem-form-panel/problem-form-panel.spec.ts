@@ -6,12 +6,13 @@ import type {
   CreateProblemRequest,
   Problem,
   TagResource,
+  UpdateProblemRequest,
 } from '../../../core/api/api.models';
 import { ProblemsApiService } from '../../../core/api/problems-api.service';
 import {
-  CreateProblemPanel,
+  ProblemFormPanel,
   strictOptionalDate,
-} from './create-problem-panel';
+} from './problem-form-panel';
 import { FormControl } from '@angular/forms';
 
 const categories: readonly CategoryResource[] = [
@@ -51,27 +52,47 @@ const createdProblem: Problem = {
   updatedAt: '2026-07-25T18:30:00.000Z',
 };
 
-describe('CreateProblemPanel', () => {
+describe('ProblemFormPanel', () => {
   let createResponse: Subject<Problem>;
+  let updateResponse: Subject<Problem>;
   let createProblem: ReturnType<typeof vi.fn>;
+  let updateProblem: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     createResponse = new Subject();
+    updateResponse = new Subject();
     createProblem = vi.fn(() => createResponse);
+    updateProblem = vi.fn(() => updateResponse);
 
     await TestBed.configureTestingModule({
-      imports: [CreateProblemPanel],
+      imports: [ProblemFormPanel],
       providers: [
         {
           provide: ProblemsApiService,
-          useValue: { createProblem },
+          useValue: { createProblem, updateProblem },
         },
       ],
     }).compileComponents();
   });
 
   function createFixture(tagsAvailable = true) {
-    const fixture = TestBed.createComponent(CreateProblemPanel);
+    const fixture = TestBed.createComponent(ProblemFormPanel);
+    fixture.componentRef.setInput('mode', 'create');
+    fixture.componentRef.setInput('problem', null);
+    fixture.componentRef.setInput('categories', categories);
+    fixture.componentRef.setInput('tags', tagsAvailable ? tags : []);
+    fixture.componentRef.setInput('tagsAvailable', tagsAvailable);
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  function createEditFixture(
+    problem: Problem = createdProblem,
+    tagsAvailable = true,
+  ) {
+    const fixture = TestBed.createComponent(ProblemFormPanel);
+    fixture.componentRef.setInput('mode', 'edit');
+    fixture.componentRef.setInput('problem', problem);
     fixture.componentRef.setInput('categories', categories);
     fixture.componentRef.setInput('tags', tagsAvailable ? tags : []);
     fixture.componentRef.setInput('tagsAvailable', tagsAvailable);
@@ -231,7 +252,7 @@ describe('CreateProblemPanel', () => {
     const fixture = createFixture();
     const component = fixture.componentInstance;
     const emitted = vi.fn();
-    component.created.subscribe(emitted);
+    component.saved.subscribe(emitted);
     component.form.patchValue({ name: 'Two Sum', categoryId: '10' });
     component.submit();
     createResponse.next(createdProblem);
@@ -273,5 +294,151 @@ describe('CreateProblemPanel', () => {
     expect(
       fixture.nativeElement.querySelector('input[type="checkbox"]'),
     ).toBeNull();
+  });
+
+  it('preloads every current problem value without transforming IDs or dates', () => {
+    const fixture = createEditFixture();
+
+    expect(fixture.componentInstance.form.getRawValue()).toEqual({
+      name: 'Two Sum',
+      categoryId: '10',
+      difficulty: 'Easy',
+      status: 'Solved',
+      tagIds: ['20'],
+      solutionUrl: 'https://example.com/solution',
+      solutionLabel: 'View solution',
+      sourceUrl: '',
+      sourceLabel: 'LeetCode',
+      notes: 'First line\nSecond line',
+      timesSolved: 2,
+      lastReviewedOn: '2026-07-25',
+    });
+    expect(fixture.nativeElement.textContent).toContain('Edit Two Sum');
+    expect(document.activeElement).toBe(
+      fixture.nativeElement.querySelector('#problem-name'),
+    );
+  });
+
+  it('submits one complete normalized PATCH body with explicit clears', () => {
+    const fixture = createEditFixture();
+    const component = fixture.componentInstance;
+    component.form.patchValue({
+      name: ' Two  Sum updated ',
+      difficulty: null,
+      tagIds: [],
+      solutionUrl: '',
+      solutionLabel: 'Ignored without URL',
+      sourceUrl: '',
+      sourceLabel: '',
+      notes: '  First line\nSecond line  ',
+      timesSolved: 3,
+      lastReviewedOn: '',
+    });
+
+    component.submit();
+    component.submit();
+
+    expect(updateProblem).toHaveBeenCalledTimes(1);
+    expect(updateProblem).toHaveBeenCalledWith(
+      '30',
+      {
+        name: 'Two  Sum updated',
+        categoryId: '10',
+        difficulty: null,
+        status: 'Solved',
+        tagIds: [],
+        solution: null,
+        source: null,
+        notes: '  First line\nSecond line  ',
+        timesSolved: 3,
+        lastReviewedOn: null,
+      } satisfies UpdateProblemRequest,
+    );
+    expect(component.saving()).toBe(true);
+  });
+
+  it('applies link defaults consistently while editing', () => {
+    const fixture = createEditFixture();
+    fixture.componentInstance.form.patchValue({
+      solutionUrl: ' https://example.com/new-solution ',
+      solutionLabel: ' ',
+      sourceUrl: ' https://example.com/source ',
+      sourceLabel: '',
+    });
+
+    fixture.componentInstance.submit();
+
+    expect(updateProblem).toHaveBeenCalledWith(
+      '30',
+      expect.objectContaining({
+        solution: {
+          url: 'https://example.com/new-solution',
+          label: 'View solution',
+        },
+        source: {
+          url: 'https://example.com/source',
+          label: 'LeetCode',
+        },
+      }),
+    );
+  });
+
+  it('preserves existing tag IDs and disables tag changes when tags failed', () => {
+    const fixture = createEditFixture(createdProblem, false);
+
+    expect(fixture.componentInstance.form.controls.tagIds.value).toEqual(['20']);
+    expect(
+      fixture.nativeElement.querySelector('input[type="checkbox"]'),
+    ).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain(
+      'Existing tags are preserved',
+    );
+
+    fixture.componentInstance.submit();
+    expect(updateProblem).toHaveBeenCalledWith(
+      '30',
+      expect.objectContaining({ tagIds: ['20'] }),
+    );
+  });
+
+  it('retains edits and shows safe update errors, including missing problems', () => {
+    const fixture = createEditFixture();
+    const component = fixture.componentInstance;
+    component.form.controls.name.setValue('Edited name');
+    component.submit();
+    updateResponse.error(
+      new HttpErrorResponse({
+        status: 404,
+        error: {
+          error: {
+            code: 'PROBLEM_NOT_FOUND',
+            message: 'private backend detail',
+          },
+        },
+      }),
+    );
+    fixture.detectChanges();
+
+    expect(component.form.controls.name.value).toBe('Edited name');
+    expect(fixture.nativeElement.textContent).toContain(
+      'This problem no longer exists',
+    );
+    expect(fixture.nativeElement.textContent).not.toContain(
+      'private backend detail',
+    );
+  });
+
+  it('emits the hydrated update and resets edit state after success', () => {
+    const fixture = createEditFixture();
+    const emitted = vi.fn();
+    fixture.componentInstance.saved.subscribe(emitted);
+    fixture.componentInstance.form.controls.name.setValue('Edited name');
+    fixture.componentInstance.submit();
+    const updated = { ...createdProblem, name: 'Edited name' };
+    updateResponse.next(updated);
+    updateResponse.complete();
+
+    expect(emitted).toHaveBeenCalledWith(updated);
+    expect(fixture.componentInstance.saving()).toBe(false);
   });
 });

@@ -12,6 +12,7 @@
         <th scope="col">Times solved</th>
         <th scope="col">Solution</th>
         <th scope="col">Source</th>
+        <th scope="col">Actions</th>
       </tr>
     </thead>
     <tbody>
@@ -73,11 +74,37 @@
               <span class="placeholder">—</span>
             }
           </td>
+          <td class="action-cell">
+            <button
+              #editButton
+              type="button"
+              class="edit-button"
+              [attr.data-problem-id]="problem.id"
+              [attr.aria-label]="'Edit ' + problem.name"
+              [attr.aria-describedby]="
+                editableIds().has(problem.id)
+                  ? null
+                  : 'edit-unavailable-' + problem.id
+              "
+              [disabled]="!editableIds().has(problem.id)"
+              (click)="editRequested.emit(problem)"
+            >
+              Edit
+            </button>
+            @if (!editableIds().has(problem.id)) {
+              <span
+                class="visually-hidden"
+                [id]="'edit-unavailable-' + problem.id"
+              >
+                Editing is unavailable because the current category is not loaded.
+              </span>
+            }
+          </td>
         </tr>
 
         @if (isExpanded(problem.id)) {
           <tr class="details-row" [id]="'problem-details-' + problem.id">
-            <td colspan="10">
+            <td colspan="11">
               <div class="details-grid">
                 <section>
                   <h3>Notes</h3>

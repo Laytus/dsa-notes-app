@@ -65,3 +65,16 @@ export interface CreateProblemRequest {
   readonly timesSolved: number;
   readonly lastReviewedOn: string | null;
 }
+
+export interface UpdateProblemRequest {
+  readonly name?: string;
+  readonly categoryId?: string;
+  readonly difficulty?: Difficulty | null;
+  readonly status?: ProblemStatus;
+  readonly tagIds?: readonly string[];
+  readonly solution?: LinkInput | null;
+  readonly source?: LinkInput | null;
+  readonly notes?: string;
+  readonly timesSolved?: number;
+  readonly lastReviewedOn?: string | null;
+}

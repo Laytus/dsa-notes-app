@@ -70,6 +70,26 @@ tie-breaking. This avoids a redundant collection request and leaves the new
 row collapsed. Successful creation closes and resets the panel; failures retain
 entered values.
 
+Creation and full-record editing share one focused typed Reactive Forms panel.
+The panel uses explicit create and edit modes, while retaining separate POST and
+PATCH request branches. Edit sends the complete normalized editable
+representation: nullable clears are explicit `null` values and an empty Tag
+selection is `tagIds: []`. Notes remain verbatim, and no Times solved/Last
+reviewed coupling occurs in this general form.
+
+The Problems page owns the active panel and allows only one Create or Edit
+session at a time. Switching away from dirty form state uses the same discard
+confirmation as closing. A hydrated PATCH response replaces the matching local
+Problem and the existing name/decimal-ID comparator is reapplied. The table
+component retains expansion state by immutable Problem ID, so an edited row
+remains expanded.
+
+Categories must be available and contain the Problem's current Category before
+Edit is enabled. A Tags load failure does not block editing other fields: tag
+controls are unavailable and the original tag IDs are included unchanged in
+the complete PATCH body. This prevents an auxiliary failure from silently
+clearing associations.
+
 ### Backend: Node.js, TypeScript, and Fastify
 
 Fastify is used for a minimal HTTP API because:

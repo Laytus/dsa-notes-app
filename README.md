@@ -15,8 +15,8 @@ The project has a working monorepo foundation:
 - a local PostgreSQL Docker Compose service;
 - workspace-wide validation commands.
 
-Problem editing/deletion, duplication, and automatic review-count behavior have
-not been implemented yet.
+Problem deletion, duplication, inline editing, and automatic review-count
+behavior have not been implemented yet.
 
 ## Main features planned for the MVP
 
@@ -354,14 +354,14 @@ load. Problems are the primary request. A Problems failure shows a page-level
 error with an explicit retry; a Categories or Tags failure shows a nonblocking
 warning while retaining a successfully loaded Problems table.
 
-The semantic table displays the fixed MVP preview columns and supports
-independent expansion of multiple rows. Expanded rows show plain-text Notes and
-UTC creation/update timestamps. Notes are not parsed as Markdown. Date-only
-`lastReviewedOn` values are displayed exactly as returned by the API, avoiding
-timezone conversion.
+The semantic table displays the fixed MVP preview columns, an explicit Edit
+action, and independent expansion of multiple rows. Expanded rows show
+plain-text Notes and UTC creation/update timestamps. Notes are not parsed as
+Markdown. Date-only `lastReviewedOn` values are displayed exactly as returned
+by the API, avoiding timezone conversion.
 
 Solution and Source use the API-provided labels and URLs, open in a new tab,
-and include safe `rel` attributes. The table remains read-only: editing,
+and include safe `rel` attributes. Editing uses the side panel; inline editing,
 deletion, search, filtering, and review actions are not implemented.
 
 ## Create Problem workflow
@@ -392,6 +392,27 @@ dates, and negative or fractional Times solved values. Backend failures appear
 as stable safe messages without exposing raw API or database details. Failed
 requests preserve the form. Successful creation inserts the hydrated response
 into the sorted table without reloading Categories or Tags.
+
+## Edit Problem workflow
+
+Use a row's **Edit** action to open the same nonmodal form shell with every
+current value preloaded. Save sends a complete editable representation through
+`PATCH /api/problems/:id`. Clearing Difficulty, either link, or Last reviewed
+sends `null`; clearing every selected Tag sends `tagIds: []`. Notes remain
+verbatim, IDs remain decimal strings, and date-only values are not converted
+through JavaScript dates.
+
+Editing requires the current Category to be present in the loaded Category
+collection. If Categories fail to load, Edit is disabled. If Tags fail to load,
+editing remains available for other fields, the existing tag IDs are preserved,
+and tag controls are unavailable until reference data is reloaded.
+
+Failed saves retain the entered form values and display a safe message.
+Successful saves replace the matching hydrated Problem in local state, reapply
+the deterministic name and exact decimal-ID ordering, and preserve row expansion
+state. Opening Create, another Edit panel, or closing a dirty panel requires
+discard confirmation. Automatic coupling between Times solved and Last reviewed
+remains deferred to the dedicated review-action phase.
 
 ## Validation
 

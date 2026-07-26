@@ -10,6 +10,7 @@ import type {
   CreateProblemRequest,
   Problem,
   TagResource,
+  UpdateProblemRequest,
 } from './api.models';
 import { CategoriesApiService } from './categories-api.service';
 import { ProblemsApiService } from './problems-api.service';
@@ -168,5 +169,62 @@ describe('API services', () => {
     );
 
     await expect(result).rejects.toMatchObject({ status: 400 });
+  });
+
+  it('patches an exact typed update using the unmodified string ID', async () => {
+    const service = TestBed.inject(ProblemsApiService);
+    const id = '9007199254740993';
+    const requestBody: UpdateProblemRequest = {
+      name: 'Two Sum updated',
+      categoryId: '9007199254740995',
+      difficulty: null,
+      status: 'Needs review',
+      tagIds: [],
+      solution: null,
+      source: null,
+      notes: 'Updated',
+      timesSolved: 3,
+      lastReviewedOn: null,
+    };
+    const response: Problem = {
+      id,
+      name: 'Two Sum updated',
+      category: {
+        id: '9007199254740995',
+        name: 'Arrays',
+      },
+      difficulty: null,
+      status: 'Needs review',
+      tags: [],
+      solution: null,
+      source: null,
+      notes: 'Updated',
+      timesSolved: 3,
+      lastReviewedOn: null,
+      createdAt: '2026-07-25T18:30:00.000Z',
+      updatedAt: '2026-07-25T20:00:00.000Z',
+    };
+
+    const result = firstValueFrom(service.updateProblem(id, requestBody));
+    const request = httpTesting.expectOne(`/api/problems/${id}`);
+    expect(request.request.method).toBe('PATCH');
+    expect(request.request.body).toEqual(requestBody);
+    request.flush(response);
+
+    await expect(result).resolves.toEqual(response);
+  });
+
+  it('propagates update failures', async () => {
+    const service = TestBed.inject(ProblemsApiService);
+    const result = firstValueFrom(
+      service.updateProblem('1', { name: 'Updated' }),
+    );
+    const request = httpTesting.expectOne('/api/problems/1');
+    request.flush(
+      { error: { code: 'PROBLEM_NOT_FOUND', message: 'Missing' } },
+      { status: 404, statusText: 'Not Found' },
+    );
+
+    await expect(result).rejects.toMatchObject({ status: 404 });
   });
 });
