@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
-import { Observable, Subject } from 'rxjs';
+import { By } from '@angular/platform-browser';
+import { Observable, of, Subject } from 'rxjs';
 import type {
   CategoryResource,
   Problem,
@@ -8,6 +9,7 @@ import type {
 import { CategoriesApiService } from '../../../core/api/categories-api.service';
 import { ProblemsApiService } from '../../../core/api/problems-api.service';
 import { TagsApiService } from '../../../core/api/tags-api.service';
+import { CreateProblemPanel } from '../create-problem-panel/create-problem-panel';
 import { ProblemListPage } from './problem-list-page';
 
 const problem: Problem = {
@@ -31,35 +33,35 @@ describe('ProblemListPage', () => {
   let categoriesSubject: Subject<readonly CategoryResource[]>;
   let tagsSubject: Subject<readonly TagResource[]>;
   let getProblems: ReturnType<typeof vi.fn>;
+  let getCategories: ReturnType<typeof vi.fn>;
+  let getTags: ReturnType<typeof vi.fn>;
+  let createProblem: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     problemsSubject = new Subject();
     categoriesSubject = new Subject();
     tagsSubject = new Subject();
     getProblems = vi.fn((): Observable<readonly Problem[]> => problemsSubject);
+    getCategories = vi.fn(
+      (): Observable<readonly CategoryResource[]> => categoriesSubject,
+    );
+    getTags = vi.fn((): Observable<readonly TagResource[]> => tagsSubject);
+    createProblem = vi.fn(() => of(problem));
 
     await TestBed.configureTestingModule({
       imports: [ProblemListPage],
       providers: [
         {
           provide: ProblemsApiService,
-          useValue: { getProblems },
+          useValue: { getProblems, createProblem },
         },
         {
           provide: CategoriesApiService,
-          useValue: {
-            getCategories: vi.fn(
-              (): Observable<readonly CategoryResource[]> => categoriesSubject,
-            ),
-          },
+          useValue: { getCategories },
         },
         {
           provide: TagsApiService,
-          useValue: {
-            getTags: vi.fn(
-              (): Observable<readonly TagResource[]> => tagsSubject,
-            ),
-          },
+          useValue: { getTags },
         },
       ],
     }).compileComponents();
@@ -98,6 +100,13 @@ describe('ProblemListPage', () => {
       'No problems have been added yet.',
     );
     expect(fixture.nativeElement.querySelector('table')).toBeNull();
+    expect(
+      (fixture.nativeElement.querySelector('.add-button') as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain(
+      'Add at least one category',
+    );
   });
 
   it('shows a safe primary error and retries only on request', () => {
@@ -119,7 +128,7 @@ describe('ProblemListPage', () => {
     expect(fixture.nativeElement.textContent).not.toContain('database secret');
 
     const retry = fixture.nativeElement.querySelector(
-      'button',
+      '.error-state button',
     ) as HTMLButtonElement;
     retry.click();
     fixture.detectChanges();
@@ -142,6 +151,118 @@ describe('ProblemListPage', () => {
     );
     expect(fixture.nativeElement.textContent).not.toContain(
       'private categories error',
+    );
+    expect(
+      (fixture.nativeElement.querySelector('.add-button') as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    const retry = fixture.nativeElement.querySelector(
+      '.warning button',
+    ) as HTMLButtonElement;
+    retry.click();
+    expect(getCategories).toHaveBeenCalledTimes(2);
+    expect(getTags).toHaveBeenCalledTimes(2);
+  });
+
+  it('opens the form and inserts a successful creation in sorted order', async () => {
+    const created: Problem = {
+      ...problem,
+      id: '2',
+      name: 'Array Basics',
+    };
+    createProblem.mockReturnValue(of(created));
+    const fixture = TestBed.createComponent(ProblemListPage);
+    problemsSubject.next([problem]);
+    problemsSubject.complete();
+    categoriesSubject.next([
+      {
+        id: '1',
+        name: 'Arrays',
+        createdAt: '2026-07-25T18:00:00.000Z',
+        updatedAt: '2026-07-25T18:00:00.000Z',
+      },
+    ]);
+    categoriesSubject.complete();
+    tagsSubject.next([]);
+    tagsSubject.complete();
+    fixture.detectChanges();
+
+    const addButton = fixture.nativeElement.querySelector(
+      '.add-button',
+    ) as HTMLButtonElement;
+    expect(addButton.disabled).toBe(false);
+    addButton.click();
+    fixture.detectChanges();
+    const panelDebug = fixture.debugElement.query(By.directive(CreateProblemPanel));
+    expect(panelDebug).not.toBeNull();
+    const panel = panelDebug.componentInstance as CreateProblemPanel;
+    panel.form.patchValue({ name: 'Array Basics', categoryId: '1' });
+    panel.submit();
+    fixture.detectChanges();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    fixture.detectChanges();
+
+    expect(createProblem).toHaveBeenCalledTimes(1);
+    expect(fixture.debugElement.query(By.directive(CreateProblemPanel))).toBeNull();
+    const names = Array.from(
+      fixture.nativeElement.querySelectorAll('.problem-row .name-cell'),
+      (cell: Element) => cell.textContent?.trim(),
+    );
+    expect(names).toEqual(['Array Basics', 'Two Sum']);
+    expect(fixture.nativeElement.querySelectorAll('.details-row')).toHaveLength(0);
+    expect(fixture.nativeElement.textContent).toContain('Array Basics was added.');
+    expect(document.activeElement).toBe(addButton);
+  });
+
+  it('orders equal names by exact numeric decimal ID after insertion', () => {
+    const sameNameProblems = [
+      { ...problem, id: '10', name: 'Same Name' },
+      { ...problem, id: '9007199254740993', name: 'same name' },
+      { ...problem, id: '9007199254740992', name: 'SAME NAME' },
+    ];
+    const fixture = TestBed.createComponent(ProblemListPage);
+    problemsSubject.next(sameNameProblems);
+    problemsSubject.complete();
+    completeAuxiliaryLoads();
+
+    fixture.componentInstance.onProblemCreated({
+      ...problem,
+      id: '2',
+      name: 'Same Name',
+    });
+
+    expect(fixture.componentInstance.problems().map(({ id }) => id)).toEqual([
+      '2',
+      '10',
+      '9007199254740992',
+      '9007199254740993',
+    ]);
+  });
+
+  it('keeps creation available when only tags fail', () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    problemsSubject.next([]);
+    problemsSubject.complete();
+    categoriesSubject.next([
+      {
+        id: '1',
+        name: 'Arrays',
+        createdAt: '2026-07-25T18:00:00.000Z',
+        updatedAt: '2026-07-25T18:00:00.000Z',
+      },
+    ]);
+    categoriesSubject.complete();
+    tagsSubject.error(new Error('tags unavailable'));
+    fixture.detectChanges();
+
+    const addButton = fixture.nativeElement.querySelector(
+      '.add-button',
+    ) as HTMLButtonElement;
+    expect(addButton.disabled).toBe(false);
+    addButton.click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain(
+      'You can still create without tags.',
     );
   });
 });

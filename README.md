@@ -15,8 +15,8 @@ The project has a working monorepo foundation:
 - a local PostgreSQL Docker Compose service;
 - workspace-wide validation commands.
 
-Problem duplication, automatic review-count behavior, and frontend mutations
-have not been implemented yet.
+Problem editing/deletion, duplication, and automatic review-count behavior have
+not been implemented yet.
 
 ## Main features planned for the MVP
 
@@ -361,8 +361,37 @@ UTC creation/update timestamps. Notes are not parsed as Markdown. Date-only
 timezone conversion.
 
 Solution and Source use the API-provided labels and URLs, open in a new tab,
-and include safe `rel` attributes. The screen remains read-only: creation,
-editing, deletion, search, filtering, and review actions are not implemented.
+and include safe `rel` attributes. The table remains read-only: editing,
+deletion, search, filtering, and review actions are not implemented.
+
+## Create Problem workflow
+
+Use the visible **Add problem** action to open the nonmodal creation side panel.
+A successfully loaded, nonempty Category collection is required before creation
+is enabled. Tags are optional; if Tags fail to load, creation remains available
+without tag selection and the page offers a separate reference-data retry.
+
+The typed reactive form includes Name, Category, Difficulty, Status, Tags,
+Solution and Source links, Last reviewed, Times solved, and plain-text Notes.
+Defaults follow the product specification:
+
+```text
+Status: To solve
+Times solved: 0
+Solution label: View solution
+Source label: LeetCode
+```
+
+Names, link URLs, and link labels are trimmed before submission. Empty link
+URLs submit `null`; a URL with an empty label receives its documented default.
+Notes and line breaks are preserved. Dates remain `YYYY-MM-DD` strings and are
+never converted through a JavaScript `Date`.
+
+Frontend validation catches missing required fields, invalid URLs, invalid
+dates, and negative or fractional Times solved values. Backend failures appear
+as stable safe messages without exposing raw API or database details. Failed
+requests preserve the form. Successful creation inserts the hydrated response
+into the sorted table without reloading Categories or Tags.
 
 ## Validation
 

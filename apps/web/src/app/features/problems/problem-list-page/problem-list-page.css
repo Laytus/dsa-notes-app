@@ -31,6 +31,42 @@ h2 {
   font-size: 0.875rem;
 }
 
+.heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.add-button {
+  border-color: #186faf;
+  background: #186faf;
+  color: #fff;
+}
+
+.add-button:hover:not(:disabled) {
+  background: #0f609b;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.availability-note {
+  margin: -0.5rem 0 1rem;
+  color: #627d98;
+  font-size: 0.85rem;
+  text-align: right;
+}
+
+.success-message {
+  margin: 0 0 1rem;
+  border-left: 3px solid #2f855a;
+  background: #f0fff4;
+  color: #22543d;
+  padding: 0.75rem 1rem;
+}
+
 .state-card {
   display: flex;
   min-height: 10rem;
@@ -81,9 +117,30 @@ button:focus-visible {
 }
 
 .warning {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
   margin: 0 0 1rem;
   border-left: 3px solid #d69e2e;
   background: #fffbea;
   color: #744210;
   padding: 0.75rem 1rem;
+}
+
+.warning button {
+  flex: none;
+}
+
+@media (max-width: 600px) {
+  .section-heading,
+  .heading-actions,
+  .warning {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .availability-note {
+    text-align: left;
+  }
 }

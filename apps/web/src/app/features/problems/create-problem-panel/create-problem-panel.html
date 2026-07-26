@@ -1,0 +1,219 @@
+<aside class="panel" aria-labelledby="create-problem-title">
+  <div class="panel-header">
+    <div>
+      <p class="eyebrow">New record</p>
+      <h2 id="create-problem-title">Add problem</h2>
+    </div>
+    <button
+      type="button"
+      class="close-button"
+      aria-label="Close Add problem panel"
+      [disabled]="saving()"
+      (click)="requestClose()"
+    >
+      ×
+    </button>
+  </div>
+
+  <form #problemForm [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    @if (saveError()) {
+      <p class="form-error" id="create-form-error" role="alert">
+        {{ saveError() }}
+      </p>
+    }
+
+    <div class="field">
+      <label for="problem-name">Name <span aria-hidden="true">*</span></label>
+      <input
+        #nameInput
+        id="problem-name"
+        type="text"
+        formControlName="name"
+        autocomplete="off"
+        [attr.aria-invalid]="showError(form.controls.name)"
+        [attr.aria-describedby]="showError(form.controls.name) ? 'problem-name-error' : null"
+      />
+      @if (showError(form.controls.name)) {
+        <p class="field-error" id="problem-name-error">Enter a problem name.</p>
+      }
+    </div>
+
+    <div class="field">
+      <label for="problem-category">Category <span aria-hidden="true">*</span></label>
+      <select
+        id="problem-category"
+        formControlName="categoryId"
+        [attr.aria-invalid]="showError(form.controls.categoryId)"
+        [attr.aria-describedby]="
+          showError(form.controls.categoryId) ? 'problem-category-error' : null
+        "
+      >
+        <option value="">Select a category</option>
+        @for (category of categories(); track category.id) {
+          <option [value]="category.id">{{ category.name }}</option>
+        }
+      </select>
+      @if (showError(form.controls.categoryId)) {
+        <p class="field-error" id="problem-category-error">
+          Select an available category.
+        </p>
+      }
+    </div>
+
+    <div class="field-grid">
+      <div class="field">
+        <label for="problem-difficulty">Difficulty</label>
+        <select id="problem-difficulty" formControlName="difficulty">
+          <option [ngValue]="null">No difficulty</option>
+          <option value="Easy">Easy</option>
+          <option value="Medium">Medium</option>
+          <option value="Hard">Hard</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="problem-status">Status</label>
+        <select id="problem-status" formControlName="status">
+          <option value="To solve">To solve</option>
+          <option value="Attempted">Attempted</option>
+          <option value="Solved">Solved</option>
+          <option value="Needs review">Needs review</option>
+          <option value="Mastered">Mastered</option>
+        </select>
+      </div>
+    </div>
+
+    <fieldset class="tag-fieldset">
+      <legend>Tags</legend>
+      @if (!tagsAvailable()) {
+        <p class="field-note">Tags are unavailable. You can still create without tags.</p>
+      } @else if (tags().length === 0) {
+        <p class="field-note">No tags are available.</p>
+      } @else {
+        <div class="tag-options">
+          @for (tag of tags(); track tag.id) {
+            <label class="tag-option">
+              <input
+                type="checkbox"
+                [value]="tag.id"
+                [checked]="form.controls.tagIds.value.includes(tag.id)"
+                (change)="onTagChange(tag.id, $event)"
+              />
+              <span>{{ tag.name }}</span>
+            </label>
+          }
+        </div>
+      }
+    </fieldset>
+
+    <fieldset>
+      <legend>Solution link</legend>
+      <div class="field">
+        <label for="solution-url">URL</label>
+        <input
+          id="solution-url"
+          type="url"
+          formControlName="solutionUrl"
+          placeholder="https://example.com/solution"
+          [attr.aria-invalid]="showError(form.controls.solutionUrl)"
+          [attr.aria-describedby]="
+            showError(form.controls.solutionUrl) ? 'solution-url-error' : null
+          "
+        />
+        @if (showError(form.controls.solutionUrl)) {
+          <p class="field-error" id="solution-url-error">
+            Enter an absolute HTTP or HTTPS URL.
+          </p>
+        }
+      </div>
+      <div class="field">
+        <label for="solution-label">Label</label>
+        <input id="solution-label" type="text" formControlName="solutionLabel" />
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Source link</legend>
+      <div class="field">
+        <label for="source-url">URL</label>
+        <input
+          id="source-url"
+          type="url"
+          formControlName="sourceUrl"
+          placeholder="https://leetcode.com/problems/..."
+          [attr.aria-invalid]="showError(form.controls.sourceUrl)"
+          [attr.aria-describedby]="
+            showError(form.controls.sourceUrl) ? 'source-url-error' : null
+          "
+        />
+        @if (showError(form.controls.sourceUrl)) {
+          <p class="field-error" id="source-url-error">
+            Enter an absolute HTTP or HTTPS URL.
+          </p>
+        }
+      </div>
+      <div class="field">
+        <label for="source-label">Label</label>
+        <input id="source-label" type="text" formControlName="sourceLabel" />
+      </div>
+    </fieldset>
+
+    <div class="field-grid">
+      <div class="field">
+        <label for="times-solved">Times solved</label>
+        <input
+          id="times-solved"
+          type="number"
+          min="0"
+          step="1"
+          formControlName="timesSolved"
+          [attr.aria-invalid]="showError(form.controls.timesSolved)"
+          [attr.aria-describedby]="
+            showError(form.controls.timesSolved) ? 'times-solved-error' : null
+          "
+        />
+        @if (showError(form.controls.timesSolved)) {
+          <p class="field-error" id="times-solved-error">
+            Enter a whole number of zero or more.
+          </p>
+        }
+      </div>
+
+      <div class="field">
+        <label for="last-reviewed">Last reviewed</label>
+        <input
+          id="last-reviewed"
+          type="date"
+          formControlName="lastReviewedOn"
+          [attr.aria-invalid]="showError(form.controls.lastReviewedOn)"
+          [attr.aria-describedby]="
+            showError(form.controls.lastReviewedOn) ? 'last-reviewed-error' : null
+          "
+        />
+        @if (showError(form.controls.lastReviewedOn)) {
+          <p class="field-error" id="last-reviewed-error">Enter a valid date.</p>
+        }
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="problem-notes">Notes</label>
+      <textarea id="problem-notes" rows="7" formControlName="notes"></textarea>
+      <p class="field-note">Plain text for now; line breaks are preserved.</p>
+    </div>
+
+    <div class="panel-actions">
+      <button
+        type="button"
+        class="secondary-button"
+        [disabled]="saving()"
+        (click)="requestClose()"
+      >
+        Cancel
+      </button>
+      <button type="submit" class="primary-button" [disabled]="saving()">
+        {{ saving() ? 'Creating…' : 'Create problem' }}
+      </button>
+    </div>
+  </form>
+</aside>

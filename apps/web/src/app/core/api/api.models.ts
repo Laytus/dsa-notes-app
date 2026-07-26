@@ -12,6 +12,11 @@ export interface Link {
   readonly label: string;
 }
 
+export interface LinkInput {
+  readonly url: string;
+  readonly label?: string;
+}
+
 export interface Category {
   readonly id: string;
   readonly name: string;
@@ -46,4 +51,17 @@ export interface Problem {
   readonly lastReviewedOn: string | null;
   readonly createdAt: string;
   readonly updatedAt: string;
+}
+
+export interface CreateProblemRequest {
+  readonly name: string;
+  readonly categoryId: string;
+  readonly difficulty: Difficulty | null;
+  readonly status: ProblemStatus;
+  readonly tagIds: readonly string[];
+  readonly solution: LinkInput | null;
+  readonly source: LinkInput | null;
+  readonly notes: string;
+  readonly timesSolved: number;
+  readonly lastReviewedOn: string | null;
 }

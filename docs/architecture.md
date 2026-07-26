@@ -49,6 +49,27 @@ During development, Angular proxies `/api` to the Fastify server at
 `http://localhost:3000`. Production hostnames are not embedded in frontend
 code, and development-only CORS middleware is unnecessary.
 
+Problem creation uses a focused typed Angular Reactive Form in a nonmodal side
+panel. The panel owns form validation, request normalization, saving state,
+safe API error mapping, and dirty-close confirmation. The Problems page owns
+panel visibility, loaded reference collections, and the canonical problem
+collection. No global state or generic form abstraction is introduced.
+
+Creation requires a successfully loaded, nonempty Category collection. Tags
+remain optional: a Tags load failure leaves creation enabled without tag
+selection and can be retried independently from the Problems request.
+
+Empty link URLs become `null`. Present URLs and labels are trimmed; an empty
+label uses the documented `View solution` or `LeetCode` default in Angular
+before submission. Notes are passed through verbatim. Date-only values remain
+strings.
+
+The hydrated Problem returned by `POST /api/problems` is inserted into local
+page state and sorted case-insensitively by name with decimal-string ID
+tie-breaking. This avoids a redundant collection request and leaves the new
+row collapsed. Successful creation closes and resets the panel; failures retain
+entered values.
+
 ### Backend: Node.js, TypeScript, and Fastify
 
 Fastify is used for a minimal HTTP API because:

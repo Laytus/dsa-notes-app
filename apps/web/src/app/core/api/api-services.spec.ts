@@ -7,6 +7,7 @@ import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
 import type {
   CategoryResource,
+  CreateProblemRequest,
   Problem,
   TagResource,
 } from './api.models';
@@ -103,5 +104,69 @@ describe('API services', () => {
     );
 
     await expect(result).rejects.toMatchObject({ status: 500 });
+  });
+
+  it('posts an exact typed create request without transforming string IDs', async () => {
+    const service = TestBed.inject(ProblemsApiService);
+    const requestBody: CreateProblemRequest = {
+      name: 'Two Sum',
+      categoryId: '9007199254740993',
+      difficulty: null,
+      status: 'To solve',
+      tagIds: ['9007199254740995'],
+      solution: null,
+      source: null,
+      notes: '',
+      timesSolved: 0,
+      lastReviewedOn: null,
+    };
+    const response: Problem = {
+      id: '9007199254740997',
+      name: 'Two Sum',
+      category: { id: requestBody.categoryId, name: 'Arrays' },
+      difficulty: null,
+      status: 'To solve',
+      tags: [{ id: '9007199254740995', name: 'Array' }],
+      solution: null,
+      source: null,
+      notes: '',
+      timesSolved: 0,
+      lastReviewedOn: null,
+      createdAt: '2026-07-25T18:30:00.000Z',
+      updatedAt: '2026-07-25T18:30:00.000Z',
+    };
+
+    const result = firstValueFrom(service.createProblem(requestBody));
+    const request = httpTesting.expectOne('/api/problems');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual(requestBody);
+    request.flush(response);
+
+    await expect(result).resolves.toEqual(response);
+  });
+
+  it('propagates create failures', async () => {
+    const service = TestBed.inject(ProblemsApiService);
+    const result = firstValueFrom(
+      service.createProblem({
+        name: 'Two Sum',
+        categoryId: '1',
+        difficulty: null,
+        status: 'To solve',
+        tagIds: [],
+        solution: null,
+        source: null,
+        notes: '',
+        timesSolved: 0,
+        lastReviewedOn: null,
+      }),
+    );
+    const request = httpTesting.expectOne('/api/problems');
+    request.flush(
+      { error: { code: 'VALIDATION_ERROR', message: 'Invalid' } },
+      { status: 400, statusText: 'Bad Request' },
+    );
+
+    await expect(result).rejects.toMatchObject({ status: 400 });
   });
 });
