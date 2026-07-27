@@ -27,11 +27,7 @@ import {
   type ProblemFilters,
 } from '../problem-filters';
 import { ProblemFormPanel } from '../problem-form-panel/problem-form-panel';
-import {
-  formatLocalDate,
-  LOCAL_DATE_SOURCE,
-  POSTGRES_INTEGER_MAX,
-} from '../problem-review';
+import { POSTGRES_INTEGER_MAX } from '../problem-review';
 import { ReferenceAdminPanel } from '../reference-admin-panel/reference-admin-panel';
 import { ProblemTable } from '../problem-table/problem-table';
 
@@ -77,7 +73,6 @@ export class ProblemListPage {
   private readonly categoriesApi = inject(CategoriesApiService);
   private readonly tagsApi = inject(TagsApiService);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly currentLocalDate = inject(LOCAL_DATE_SOURCE);
   private readonly addProblemButton =
     viewChild<ElementRef<HTMLButtonElement>>('addProblemButton');
   private readonly manageReferencesButton =
@@ -511,7 +506,6 @@ export class ProblemListPage {
     this.problemsApi
       .updateProblem(problem.id, {
         timesSolved: problem.timesSolved + 1,
-        lastReviewedOn: formatLocalDate(this.currentLocalDate()),
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({

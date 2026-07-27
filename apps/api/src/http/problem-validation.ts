@@ -58,14 +58,16 @@ const problemProperties = {
   source: linkObjectSchema,
   notes: {},
   timesSolved: {},
-  lastReviewedOn: {},
 } as const;
 
 export const createProblemBodySchema = {
   type: 'object',
   additionalProperties: false,
   required: ['name', 'categoryId'],
-  properties: problemProperties,
+  properties: {
+    ...problemProperties,
+    lastReviewedOn: {},
+  },
 } as const;
 
 export const updateProblemBodySchema = {
@@ -302,7 +304,7 @@ export function parseProblemBody(
     result.timesSolved = timesSolved;
   }
 
-  if ('lastReviewedOn' in body) {
+  if (mode === 'create' && 'lastReviewedOn' in body) {
     const date = body['lastReviewedOn'];
     if (date !== null) {
       if (typeof date !== 'string' || parseStrictDate(date) === null) {

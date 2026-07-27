@@ -257,11 +257,10 @@ export class ProblemFormPanel implements AfterViewInit, OnChanges {
       return;
     }
 
-    const request = this.toRequest();
     this.saving.set(true);
     let response;
     if (this.mode() === 'create') {
-      response = this.problemsApi.createProblem(request);
+      response = this.problemsApi.createProblem(this.toCreateRequest());
     } else {
       const problem = this.problem();
       if (problem === null) {
@@ -271,7 +270,7 @@ export class ProblemFormPanel implements AfterViewInit, OnChanges {
       }
       response = this.problemsApi.updateProblem(
         problem.id,
-        request satisfies UpdateProblemRequest,
+        this.toUpdateRequest(),
       );
     }
 
@@ -308,7 +307,7 @@ export class ProblemFormPanel implements AfterViewInit, OnChanges {
     this.saveError.set(null);
   }
 
-  private toRequest(): CreateProblemRequest {
+  private toCreateRequest(): CreateProblemRequest {
     const value = this.form.getRawValue();
     return {
       name: value.name.trim(),
@@ -330,6 +329,12 @@ export class ProblemFormPanel implements AfterViewInit, OnChanges {
       timesSolved: value.timesSolved ?? 0,
       lastReviewedOn: value.lastReviewedOn || null,
     };
+  }
+
+  private toUpdateRequest(): UpdateProblemRequest {
+    const { lastReviewedOn, ...request } = this.toCreateRequest();
+    void lastReviewedOn;
+    return request;
   }
 
   private toLink(

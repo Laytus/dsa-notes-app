@@ -200,7 +200,7 @@ The table should expose a numeric input and, ideally, decrement and increment bu
 
 When `Times solved` increases:
 
-- `Last reviewed` is automatically set to the current local date;
+- the backend automatically sets `Last reviewed` to its current calendar date;
 - the update is persisted as part of the same logical operation.
 
 When `Times solved` decreases:
@@ -212,7 +212,9 @@ When `Times solved` is manually replaced with a larger value:
 - it is treated as an increase;
 - `Last reviewed` is updated automatically.
 
-`Last reviewed` remains manually editable through an inline date input.
+`Last reviewed` is hydrated read state in the general Problem update contract.
+It is not client-writable through `PATCH`; any future manual date editing needs
+an explicit server-owned design before it is added.
 
 The minimum value of `Times solved` is `0`.
 

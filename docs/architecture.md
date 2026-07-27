@@ -72,10 +72,12 @@ entered values.
 
 Creation and full-record editing share one focused typed Reactive Forms panel.
 The panel uses explicit create and edit modes, while retaining separate POST and
-PATCH request branches. Edit sends the complete normalized editable
+PATCH request branches. Edit sends the complete normalized writable
 representation: nullable clears are explicit `null` values and an empty Tag
-selection is `tagIds: []`. Notes remain verbatim, and no Times solved/Last
-reviewed coupling occurs in this general form.
+selection is `tagIds: []`. Notes remain verbatim. `timesSolved` remains
+writable, but `lastReviewedOn` is hydrated read state: the backend compares a
+requested count with the locked persisted count and derives the date only for
+an increase.
 
 The Problems page owns the active panel and allows only one Create or Edit
 session at a time. Switching away from dirty form state uses the same discard
@@ -108,11 +110,10 @@ unexpected failures use stable safe text; `404` does not remove local state
 implicitly, and retry clears the prior row error before the next request.
 
 Mark reviewed is an explicit frontend command using the existing partial PATCH
-contract. It sends only `timesSolved + 1` and `lastReviewedOn`, with the latter
-formatted from injected local calendar getters. A focused local-date function
-keeps UTC conversion out of the action and makes boundary behavior deterministic
-in tests. The shared PostgreSQL integer maximum prevents overflow before a
-request.
+contract. It sends only `timesSolved + 1`; the server locks and compares the
+persisted count, then sets `lastReviewedOn` from one injected server-calendar
+date when the count increased. Equal or decreased counts preserve the persisted
+date. The shared PostgreSQL integer maximum prevents overflow before a request.
 
 The Problems page owns immutable per-Problem reviewing IDs and review-error
 maps, separately from deletion state. A pending review disables Review, Edit,
@@ -433,7 +434,7 @@ Conceptual behavior:
 ```text
 newTimesSolved > currentTimesSolved
     → update times_solved
-    → set last_reviewed to current local application date
+    → set last_reviewed to one server-calendar date
 otherwise
     → update times_solved only
 ```
@@ -442,7 +443,9 @@ The backend should not trust the frontend to calculate whether the value increas
 
 The API may accept the requested new value and compare it with the persisted current value inside a transaction.
 
-Date semantics must be documented. Since the application is local and single-user, a date without time is sufficient for `Last reviewed`.
+The server-calendar source is injected at the application boundary so tests use
+a deterministic date without relying on wall-clock time. Since the application
+is local and single-user, a date without time is sufficient for `Last reviewed`.
 
 ## 9. API shape
 
@@ -553,10 +556,11 @@ Notes are preserved verbatim. Link objects require absolute HTTP or HTTPS URLs.
 Missing labels use `View solution` for Solution and `LeetCode` for Source.
 Absent links use `null`.
 
-`lastReviewedOn` accepts only real calendar dates in exact `YYYY-MM-DD` form
-and is stored without timezone conversion. General CRUD validates and persists
-`timesSolved` independently of status. Automatic review-date mutation remains
-part of the later atomic review-semantics phase.
+`lastReviewedOn` is stored as a date-only `YYYY-MM-DD` value without timezone
+conversion and is returned in hydrated Problem responses. It is not a writable
+PATCH field. The server compares an incoming `timesSolved` value with the
+locked persisted value: an increase writes one server-calendar date, while an
+equal/decreased count and unrelated updates preserve the existing date.
 
 ## 11. Search, filter, and sorting architecture
 

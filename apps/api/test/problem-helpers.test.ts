@@ -6,8 +6,18 @@ import {
   parseStrictDate,
 } from '../src/http/problem-validation.js';
 import { duplicateProblemName } from '../src/routes/problems.js';
+import { formatServerCalendarDate } from '../src/http/server-date.js';
 
 describe('problem request helpers', () => {
+  it('formats the server calendar date without UTC conversion', () => {
+    const date = {
+      getFullYear: () => 2026,
+      getMonth: () => 0,
+      getDate: () => 5,
+    } as Date;
+
+    expect(formatServerCalendarDate(date)).toBe('2026-01-05');
+  });
   it.each([
     ['2024-02-29', '2024-02-29'],
     ['2026-02-29', null],

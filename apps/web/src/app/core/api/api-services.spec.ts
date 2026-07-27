@@ -275,7 +275,6 @@ describe('API services', () => {
       source: null,
       notes: 'Updated',
       timesSolved: 3,
-      lastReviewedOn: null,
     };
     const response: Problem = {
       id,

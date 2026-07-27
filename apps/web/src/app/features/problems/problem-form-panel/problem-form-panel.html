@@ -194,21 +194,23 @@
         }
       </div>
 
-      <div class="field">
-        <label for="last-reviewed">Last reviewed</label>
-        <input
-          id="last-reviewed"
-          type="date"
-          formControlName="lastReviewedOn"
-          [attr.aria-invalid]="showError(form.controls.lastReviewedOn)"
-          [attr.aria-describedby]="
-            showError(form.controls.lastReviewedOn) ? 'last-reviewed-error' : null
-          "
-        />
-        @if (showError(form.controls.lastReviewedOn)) {
-          <p class="field-error" id="last-reviewed-error">Enter a valid date.</p>
-        }
-      </div>
+      @if (mode() === 'create') {
+        <div class="field">
+          <label for="last-reviewed">Last reviewed</label>
+          <input
+            id="last-reviewed"
+            type="date"
+            formControlName="lastReviewedOn"
+            [attr.aria-invalid]="showError(form.controls.lastReviewedOn)"
+            [attr.aria-describedby]="
+              showError(form.controls.lastReviewedOn) ? 'last-reviewed-error' : null
+            "
+          />
+          @if (showError(form.controls.lastReviewedOn)) {
+            <p class="field-error" id="last-reviewed-error">Enter a valid date.</p>
+          }
+        </div>
+      }
     </div>
 
     <div class="field">

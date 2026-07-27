@@ -296,7 +296,7 @@ describe('ProblemFormPanel', () => {
     ).toBeNull();
   });
 
-  it('preloads every current problem value without transforming IDs or dates', () => {
+  it('preloads every writable problem value without transforming IDs', () => {
     const fixture = createEditFixture();
 
     expect(fixture.componentInstance.form.getRawValue()).toEqual({
@@ -314,6 +314,7 @@ describe('ProblemFormPanel', () => {
       lastReviewedOn: '2026-07-25',
     });
     expect(fixture.nativeElement.textContent).toContain('Edit Two Sum');
+    expect(fixture.nativeElement.querySelector('#last-reviewed')).toBeNull();
     expect(document.activeElement).toBe(
       fixture.nativeElement.querySelector('#problem-name'),
     );
@@ -350,8 +351,7 @@ describe('ProblemFormPanel', () => {
         solution: null,
         source: null,
         notes: '  First line\nSecond line  ',
-        timesSolved: 3,
-        lastReviewedOn: null,
+      timesSolved: 3,
       } satisfies UpdateProblemRequest,
     );
     expect(component.saving()).toBe(true);

@@ -22,6 +22,10 @@ import {
   type ProblemInput,
   type ProblemRequestError,
 } from '../http/problem-validation.js';
+import {
+  formatServerCalendarDate,
+  type ServerDateSource,
+} from '../http/server-date.js';
 import { idParamsSchema, parseId } from '../http/validation.js';
 
 interface ItemParams {
@@ -145,6 +149,7 @@ function handleRouteError(error: unknown, reply: FastifyReply) {
 export function registerProblemRoutes(
   app: FastifyInstance,
   resolveDatabase: ResolveDatabase,
+  currentDate: ServerDateSource,
 ): void {
   app.get('/api/problems', async () => loadProblems(resolveDatabase()));
 
@@ -317,7 +322,7 @@ export function registerProblemRoutes(
       try {
         const resource = await resolveDatabase().transaction(async (tx) => {
           const [existing] = await tx
-            .select({ id: problems.id })
+            .select({ id: problems.id, timesSolved: problems.timesSolved })
             .from(problems)
             .where(eq(problems.id, id))
             .for('update');
@@ -329,6 +334,12 @@ export function registerProblemRoutes(
           }
 
           await verifyReferences(tx, input);
+          const timesSolvedIncreased =
+            input.timesSolved !== undefined &&
+            input.timesSolved > existing.timesSolved;
+          const reviewDate = timesSolvedIncreased
+            ? formatServerCalendarDate(currentDate())
+            : undefined;
           await tx
             .update(problems)
             .set({
@@ -340,11 +351,11 @@ export function registerProblemRoutes(
                 difficulty: input.difficulty,
               }),
               ...(input.status !== undefined && { status: input.status }),
-              ...('lastReviewedOn' in input && {
-                lastReviewedOn: input.lastReviewedOn,
-              }),
               ...(input.timesSolved !== undefined && {
                 timesSolved: input.timesSolved,
+              }),
+              ...(reviewDate !== undefined && {
+                lastReviewedOn: reviewDate,
               }),
               ...('solution' in input && {
                 solutionUrl: input.solution?.url ?? null,

@@ -65,10 +65,10 @@ async function createProblem(categoryId: bigint): Promise<bigint> {
   return record.id;
 }
 
-async function injectApi(
-  options: InjectOptions,
-) {
-  const app = buildApp({ database: requireDatabase() });
+const reviewDate = () => new Date(2026, 0, 5, 12);
+
+async function injectApi(options: InjectOptions) {
+  const app = buildApp({ database: requireDatabase(), currentDate: reviewDate });
   try {
     return await app.inject(options);
   } finally {
@@ -936,7 +936,7 @@ describe('problem HTTP API', () => {
     },
   );
 
-  it('updates all mutable scalar fields without inferring review behavior', async () => {
+  it('updates scalar fields and derives Last reviewed when Times solved increases', async () => {
     const categoryId = await createCategory();
     const problemId = await createProblem(categoryId);
     const createdBefore = (
@@ -956,7 +956,6 @@ describe('problem HTTP API', () => {
         source: { url: 'https://example.com/p', label: 'Problem' },
         notes: 'raw **Markdown**',
         timesSolved: 3,
-        lastReviewedOn: '2026-07-25',
       },
     });
     const body = response.json<{
@@ -974,7 +973,7 @@ describe('problem HTTP API', () => {
       source: { url: 'https://example.com/p', label: 'Problem' },
       notes: 'raw **Markdown**',
       timesSolved: 3,
-      lastReviewedOn: '2026-07-25',
+      lastReviewedOn: '2026-01-05',
     });
     expect(body.createdAt).toBe(createdBefore?.createdAt.toISOString());
     expect(new Date(body.updatedAt).getTime()).toBeGreaterThanOrEqual(
@@ -982,7 +981,7 @@ describe('problem HTTP API', () => {
     );
   });
 
-  it('clears nullable fields and preserves absent fields', async () => {
+  it('clears nullable fields and preserves an absent Last reviewed date', async () => {
     const categoryId = await createCategory();
     const [problem] = await requireDatabase()
       .insert(problems)
@@ -1007,7 +1006,6 @@ describe('problem HTTP API', () => {
         difficulty: null,
         solution: null,
         source: null,
-        lastReviewedOn: null,
       },
     });
     expect(response.statusCode).toBe(200);
@@ -1016,8 +1014,129 @@ describe('problem HTTP API', () => {
       difficulty: null,
       solution: null,
       source: null,
-      lastReviewedOn: null,
+      lastReviewedOn: '2026-07-25',
       notes: 'preserve',
+    });
+  });
+
+  it.each([
+    { from: 0, to: 1, label: 'from zero' },
+    { from: 2, to: 3, label: 'by one' },
+    { from: 2, to: 7, label: 'by more than one' },
+  ])('sets the server date when Times solved increases $label', async ({ from, to }) => {
+    const categoryId = await createCategory();
+    const problemId = await createProblem(categoryId);
+    await requireDatabase()
+      .update(problems)
+      .set({ timesSolved: from, lastReviewedOn: '2025-12-01' })
+      .where(eq(problems.id, problemId));
+
+    const response = await injectApi({
+      method: 'PATCH',
+      url: `/api/problems/${problemId}`,
+      payload: { timesSolved: to },
+    });
+    const databaseRow = (
+      await requireDatabase()
+        .select({ timesSolved: problems.timesSolved, lastReviewedOn: problems.lastReviewedOn })
+        .from(problems)
+        .where(eq(problems.id, problemId))
+    )[0];
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      id: problemId.toString(),
+      timesSolved: to,
+      lastReviewedOn: '2026-01-05',
+    });
+    expect(databaseRow).toMatchObject({
+      timesSolved: to,
+      lastReviewedOn: '2026-01-05',
+    });
+  });
+
+  it.each([
+    { from: 4, to: 4, label: 'is unchanged' },
+    { from: 4, to: 2, label: 'decreases' },
+  ])('preserves Last reviewed when Times solved $label', async ({ from, to }) => {
+    const categoryId = await createCategory();
+    const problemId = await createProblem(categoryId);
+    await requireDatabase()
+      .update(problems)
+      .set({ timesSolved: from, lastReviewedOn: '2025-12-01' })
+      .where(eq(problems.id, problemId));
+
+    const response = await injectApi({
+      method: 'PATCH',
+      url: `/api/problems/${problemId}`,
+      payload: { timesSolved: to },
+    });
+    const databaseRow = (
+      await requireDatabase()
+        .select({ timesSolved: problems.timesSolved, lastReviewedOn: problems.lastReviewedOn })
+        .from(problems)
+        .where(eq(problems.id, problemId))
+    )[0];
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      timesSolved: to,
+      lastReviewedOn: '2025-12-01',
+    });
+    expect(databaseRow).toMatchObject({
+      timesSolved: to,
+      lastReviewedOn: '2025-12-01',
+    });
+  });
+
+  it('preserves Last reviewed when unrelated fields change', async () => {
+    const originalCategoryId = await createCategory('Original');
+    const replacementCategoryId = await createCategory('Replacement');
+    const tagId = await createTag('Graph');
+    const problemId = await createProblem(originalCategoryId);
+    await requireDatabase()
+      .update(problems)
+      .set({ lastReviewedOn: '2025-12-01' })
+      .where(eq(problems.id, problemId));
+
+    const response = await injectApi({
+      method: 'PATCH',
+      url: `/api/problems/${problemId}`,
+      payload: {
+        name: 'Updated',
+        categoryId: replacementCategoryId.toString(),
+        difficulty: 'Hard',
+        status: 'Mastered',
+        tagIds: [tagId.toString()],
+        notes: 'Updated notes',
+        solution: { url: 'https://example.com/solution' },
+        source: { url: 'https://example.com/source' },
+      },
+    });
+    const databaseRow = (
+      await requireDatabase()
+        .select({ lastReviewedOn: problems.lastReviewedOn })
+        .from(problems)
+        .where(eq(problems.id, problemId))
+    )[0];
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ lastReviewedOn: '2025-12-01' });
+    expect(databaseRow?.lastReviewedOn).toBe('2025-12-01');
+  });
+
+  it('rejects Last reviewed as a writable PATCH field', async () => {
+    const categoryId = await createCategory();
+    const problemId = await createProblem(categoryId);
+    const response = await injectApi({
+      method: 'PATCH',
+      url: `/api/problems/${problemId}`,
+      payload: { lastReviewedOn: '2026-01-05' },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({
+      error: { code: 'VALIDATION_ERROR', message: 'The request is invalid.' },
     });
   });
 
@@ -1156,7 +1275,7 @@ describe('problem HTTP API', () => {
     ).resolves.toEqual([{ name: 'Two Sum', categoryId }]);
   });
 
-  it('does not infer review fields from status or count during CRUD', async () => {
+  it('derives Last reviewed when a CRUD PATCH increases Times solved', async () => {
     const categoryId = await createCategory();
     const problemId = await createProblem(categoryId);
     const response = await injectApi({
@@ -1169,7 +1288,7 @@ describe('problem HTTP API', () => {
     expect(response.json()).toMatchObject({
       status: 'Solved',
       timesSolved: 4,
-      lastReviewedOn: null,
+      lastReviewedOn: '2026-01-05',
     });
   });
 

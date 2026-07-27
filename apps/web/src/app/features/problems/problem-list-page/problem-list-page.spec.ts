@@ -12,10 +12,7 @@ import { ProblemsApiService } from '../../../core/api/problems-api.service';
 import { TagsApiService } from '../../../core/api/tags-api.service';
 import { ProblemFormPanel } from '../problem-form-panel/problem-form-panel';
 import { ReferenceAdminPanel } from '../reference-admin-panel/reference-admin-panel';
-import {
-  LOCAL_DATE_SOURCE,
-  POSTGRES_INTEGER_MAX,
-} from '../problem-review';
+import { POSTGRES_INTEGER_MAX } from '../problem-review';
 import { ProblemTable } from '../problem-table/problem-table';
 import { ProblemListPage } from './problem-list-page';
 
@@ -143,14 +140,6 @@ describe('ProblemListPage', () => {
         {
           provide: TagsApiService,
           useValue: { getTags, createTag, updateTag, deleteTag },
-        },
-        {
-          provide: LOCAL_DATE_SOURCE,
-          useValue: () => ({
-            getFullYear: () => 2026,
-            getMonth: () => 0,
-            getDate: () => 5,
-          }),
         },
       ],
     }).compileComponents();
@@ -1179,7 +1168,6 @@ describe('ProblemListPage', () => {
     expect(updateProblem).toHaveBeenCalledTimes(1);
     expect(updateProblem).toHaveBeenCalledWith('9007199254740993', {
       timesSolved: 3,
-      lastReviewedOn: '2026-01-05',
     });
     expect(reviewButton.disabled).toBe(true);
     expect(reviewButton.textContent).toContain('Updating');
@@ -1230,7 +1218,6 @@ describe('ProblemListPage', () => {
 
     expect(updateProblem).toHaveBeenCalledWith('1', {
       timesSolved: 1,
-      lastReviewedOn: '2026-01-05',
     });
   });
 

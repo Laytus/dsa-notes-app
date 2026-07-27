@@ -61,9 +61,9 @@ The main performance risks are very large Notes fields, full Markdown rendering 
 | Whitespace handling is unspecified. | Whitespace-only values could satisfy naïve validation. | Trim names and labels at the API boundary; reject trimmed-empty required values; preserve Notes verbatim. | Blocks CRUD contracts. |
 | Partial link-state rules are unclear. | URL-only and label-only values can produce inconsistent UI/API behavior. | Treat no URL as no clickable link. Permit a default/stored label without a URL, but require a non-empty label when a URL exists. Normalize empty persistence values consistently. | Blocks problem validation. |
 | URL validation details are incomplete. | “Absolute HTTP/HTTPS” needs consistent enforcement. | Parse with the platform `URL` class, allow only `http:`/`https:`, trim first, and reject embedded credentials. | Blocks problem validation. |
-| “Current local date” has no timezone authority. | Near midnight, server UTC may produce the wrong date. | Add explicit `APP_TIME_ZONE`, defaulting to `America/Santiago`, calculate the date in that zone, and persist a PostgreSQL `date`. | Blocks safe review behavior. |
+| “Current local date” has no timezone authority. | Near midnight, a client-derived or UTC date can be wrong. | Use one injected server-calendar source for the locked update transaction and persist its `YYYY-MM-DD` value as a PostgreSQL `date`. | Blocks safe review behavior. |
 | Concurrent `Times solved` updates are not fully specified. | Requests could compare against stale values or lose updates. | Lock the problem row inside a transaction, compare the requested absolute value with the locked value, then update both fields atomically. | Blocks review implementation. |
-| A PATCH containing increased `timesSolved` and explicit `lastReviewed` is ambiguous. | The two instructions conflict. | When the count increases, the automatic current date wins. Otherwise apply an explicitly supplied date. Document and test this precedence. | Blocks PATCH semantics. |
+| A PATCH containing increased `timesSolved` and explicit `lastReviewed` is ambiguous. | Client-supplied review dates can bypass the review rule. | Make `lastReviewedOn` hydrated read state, not a writable PATCH field. The server derives it only when the locked persisted count is increased. | Blocks PATCH semantics. |
 | Creation with `timesSolved > 0` is ambiguous. | There is no prior persisted value to “increase” from. | Do not auto-set the date on creation. Accept an explicit date or leave it null. Automatic behavior applies to updates. | Blocks create semantics. |
 | `updatedAt` behavior is incomplete. | No-op updates and tag changes may behave inconsistently. | Reject empty PATCH bodies and advance `updatedAt` after successful mutations, including tag changes. | Resolve with API contracts. |
 | Category deletion lacks an exact API result. | UI and tests require a stable contract. | Use `409 Conflict`, code `CATEGORY_IN_USE`, and `ON DELETE RESTRICT`. Leave all data unchanged. | Blocks category delete API. |
@@ -339,13 +339,13 @@ Category/tag deletion and automatic review behavior must be tested against Postg
 ### Task 17 — Atomic review semantics
 
 - **Objective:** Enforce `Times solved` and `Last reviewed` safely.
-- **Scope:** Lock/compare/update transaction, timezone service, precedence rule, concurrency coverage where practical.
+- **Scope:** Lock/compare/update transaction, injected server-calendar source, precedence rule, concurrency coverage where practical.
 - **Areas:** Problem update domain, date config/utility, tests, docs.
 - **Dependencies:** Tasks 6 and 15.
-- **Acceptance:** Increase sets configured local date; equal/decrease preserves it unless explicitly edited; invalid counts fail atomically.
-- **Validation:** Increase/decrease/manual-date/timezone/concurrency integration tests.
+- **Acceptance:** Increase sets the server calendar date; equal/decrease and unrelated updates preserve it; invalid counts fail atomically.
+- **Validation:** Increase/decrease/unrelated-update/server-date/concurrency integration tests.
 - **Commands:** API test, typecheck, lint.
-- **Risks/decisions:** Confirm `APP_TIME_ZONE` and row-lock implementation.
+- **Risks/decisions:** Confirm server-calendar source and row-lock implementation.
 - **Commit boundary:** `feat(api): enforce atomic review updates`.
 
 ### Task 18 — Static problem table

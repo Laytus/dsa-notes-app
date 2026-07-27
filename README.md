@@ -343,9 +343,10 @@ When a link label is omitted, Solution uses `View solution` and Source uses
 
 `PATCH` uses true partial-update semantics. Supplying `tagIds` replaces the
 complete tag set, while omitted fields remain unchanged. Invalid category or
-tag references return `400` using the stable error envelope. The explicit Mark
-reviewed action updates `Times solved` and `Last reviewed` together; automatic
-coupling for arbitrary edits remains deferred.
+tag references return `400` using the stable error envelope. `timesSolved` is
+writable, while `lastReviewedOn` is hydrated read state. When a PATCH increases
+the persisted count, the backend sets `lastReviewedOn` from its server calendar
+date; equal/decreased counts and unrelated edits preserve it.
 
 ## Read-only Problems screen
 
@@ -419,7 +420,7 @@ A successfully loaded, nonempty Category collection is required before creation
 is enabled. Tags are optional; if Tags fail to load, creation remains available
 without tag selection and the page offers a separate reference-data retry.
 
-The typed reactive form includes Name, Category, Difficulty, Status, Tags,
+The typed creation form includes Name, Category, Difficulty, Status, Tags,
 Solution and Source links, Last reviewed, Times solved, and plain-text Notes.
 Defaults follow the product specification:
 
@@ -444,11 +445,11 @@ into the sorted table without reloading Categories or Tags.
 ## Edit Problem workflow
 
 Use a row's **Edit** action to open the same nonmodal form shell with every
-current value preloaded. Save sends a complete editable representation through
-`PATCH /api/problems/:id`. Clearing Difficulty, either link, or Last reviewed
-sends `null`; clearing every selected Tag sends `tagIds: []`. Notes remain
-verbatim, IDs remain decimal strings, and date-only values are not converted
-through JavaScript dates.
+current writable value preloaded. Save sends a complete editable representation
+through `PATCH /api/problems/:id`. Clearing Difficulty or either link sends
+`null`; clearing every selected Tag sends `tagIds: []`. `Last reviewed` is
+returned as read state and is not submitted by Edit. Notes remain verbatim and
+IDs remain decimal strings.
 
 Editing requires the current Category to be present in the loaded Category
 collection. If Categories fail to load, Edit is disabled. If Tags fail to load,
@@ -459,9 +460,8 @@ Failed saves retain the entered form values and display a safe message.
 Successful saves replace the matching hydrated Problem in local state, reapply
 the deterministic name and exact decimal-ID ordering, and preserve row expansion
 state. Opening Create, another Edit panel, or closing a dirty panel requires
-discard confirmation. Automatic coupling between Times solved and Last reviewed
-for arbitrary form edits remains deferred; use Mark reviewed for the explicit
-coupled action.
+discard confirmation. Increasing Times solved through any PATCH is coupled to
+the server-owned Last reviewed update.
 
 ## Duplicate Problem workflow
 
@@ -512,9 +512,9 @@ remains visible locally rather than being treated as an implicit success.
 ## Problem Review workflow
 
 Each row includes **Mark reviewed**. It sends a partial
-`PATCH /api/problems/:id` containing only the incremented `timesSolved` and the
-user's current local calendar date as `lastReviewedOn`. The date is built from
-local year, month, and day components rather than a UTC ISO string.
+`PATCH /api/problems/:id` containing only the incremented `timesSolved`. The
+backend compares that count with the locked persisted value and returns the
+hydrated Problem with server-owned `lastReviewedOn` when it increased.
 
 Review is unavailable while that Problem is open in Edit, being deleted, or
 already being reviewed. While pending, only that row's Review, Edit, and Delete

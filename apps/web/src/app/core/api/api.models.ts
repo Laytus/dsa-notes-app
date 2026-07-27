@@ -80,5 +80,4 @@ export interface UpdateProblemRequest {
   readonly source?: LinkInput | null;
   readonly notes?: string;
   readonly timesSolved?: number;
-  readonly lastReviewedOn?: string | null;
 }
