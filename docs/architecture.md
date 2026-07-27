@@ -595,6 +595,16 @@ export function normalizeSearchText(value: string): string {
 
 Filtering and sorting functions must remain pure and independently testable.
 
+The Problems page keeps a nullable active sort state. With no explicit sort,
+the canonical Name-ascending/exact-decimal-ID order is rendered unchanged.
+Otherwise sorting occurs after filtering and has one active field with an
+ascending/descending toggle. Name and Category compare case-insensitively;
+Category then uses Category ID. Difficulty follows Easy, Medium, Hard, while
+null remains last in both directions. Canonical `YYYY-MM-DD` review dates are
+compared as date strings and null remains last. Every mode ends with the exact
+decimal-string Problem ID comparator. Status and Times solved are not sortable
+under the current product specification.
+
 The application must not perform a backend request per search input change.
 
 The initial filtering implementation keeps the loaded Problems collection as

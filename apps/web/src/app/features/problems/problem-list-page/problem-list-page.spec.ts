@@ -2127,4 +2127,33 @@ describe('ProblemListPage', () => {
     expect(updateProblem).not.toHaveBeenCalled();
     expect(fixture.componentInstance.inlineEdit()).toBeNull();
   });
+
+  it('derives visible rows from filters followed by the active sort without reloading', () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    const later: Problem = { ...problem, id: '2', name: 'Alpha' };
+    completeLoadedPage([problem, later]);
+    fixture.detectChanges();
+
+    fixture.componentInstance.setSort('name');
+    expect(fixture.componentInstance.activeSort()).toEqual({
+      field: 'name',
+      direction: 'ascending',
+    });
+    expect(fixture.componentInstance.visibleProblems().map(({ id }) => id)).toEqual([
+      '2',
+      '1',
+    ]);
+
+    fixture.componentInstance.setSort('name');
+    expect(fixture.componentInstance.visibleProblems().map(({ id }) => id)).toEqual([
+      '1',
+      '2',
+    ]);
+    const searchInput = document.createElement('input');
+    searchInput.value = 'alpha';
+    fixture.componentInstance.setSearchQuery({ target: searchInput } as unknown as Event);
+    expect(fixture.componentInstance.activeSort()?.direction).toBe('descending');
+    expect(fixture.componentInstance.visibleProblems().map(({ id }) => id)).toEqual(['2']);
+    expect(getProblems).toHaveBeenCalledTimes(1);
+  });
 });

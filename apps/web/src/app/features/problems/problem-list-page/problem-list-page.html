@@ -212,7 +212,8 @@
       @if (problems().length > 0) {
         <app-problem-table
           [hidden]="filteredProblems().length === 0"
-          [problems]="filteredProblems()"
+          [problems]="visibleProblems()"
+          [activeSort]="activeSort()"
           [editableIds]="editableIds()"
           [duplicatingIds]="duplicatingIds()"
           [duplicateErrors]="duplicateErrors()"
@@ -237,6 +238,7 @@
           (inlineDraftChanged)="updateInlineDraft($event)"
           (inlineSaveRequested)="saveInlineEdit()"
           (inlineCancelRequested)="cancelInlineEdit()"
+          (sortRequested)="setSort($event)"
         />
       }
   }

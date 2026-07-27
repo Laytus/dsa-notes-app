@@ -10,6 +10,7 @@ import {
 import type { Problem } from '../../../core/api/api.models';
 import type { CategoryResource, Difficulty, ProblemStatus } from '../../../core/api/api.models';
 import type { InlineProblemEdit, InlineProblemField } from '../inline-problem-edit';
+import type { ProblemSort, ProblemSortField } from '../problem-sorting';
 
 @Component({
   selector: 'app-problem-table',
@@ -37,6 +38,7 @@ export class ProblemTable {
   readonly inlineSaving = input(false);
   readonly inlineError = input<string | null>(null);
   readonly inlinePendingProblemId = input<string | null>(null);
+  readonly activeSort = input<ProblemSort | null>(null);
   readonly editRequested = output<Problem>();
   readonly duplicateRequested = output<Problem>();
   readonly deleteRequested = output<Problem>();
@@ -45,6 +47,7 @@ export class ProblemTable {
   readonly inlineDraftChanged = output<string>();
   readonly inlineSaveRequested = output<void>();
   readonly inlineCancelRequested = output<void>();
+  readonly sortRequested = output<ProblemSortField>();
   readonly expandedIds = signal<ReadonlySet<string>>(new Set());
   private readonly editButtons =
     viewChildren<ElementRef<HTMLButtonElement>>('editButton');
@@ -95,6 +98,23 @@ export class ProblemTable {
 
   focusInlineEditor(): void {
     this.inlineEditors()[0]?.nativeElement.focus();
+  }
+
+  isSorted(field: ProblemSortField): boolean {
+    return this.activeSort()?.field === field;
+  }
+
+  sortDirection(field: ProblemSortField): 'ascending' | 'descending' | 'none' {
+    return this.isSorted(field) ? this.activeSort()!.direction : 'none';
+  }
+
+  sortButtonLabel(field: ProblemSortField, label: string): string {
+    const direction = this.isSorted(field)
+      ? this.activeSort()!.direction === 'ascending'
+        ? 'descending'
+        : 'ascending'
+      : 'ascending';
+    return `Sort by ${label} ${direction}`;
   }
 
   formatTimestamp(value: string): string {

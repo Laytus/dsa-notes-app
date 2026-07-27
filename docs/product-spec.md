@@ -437,6 +437,12 @@ Sorting must be stable where practical.
 
 Empty values must appear after non-empty values.
 
+Only one sorting field is active at a time. Its header toggles between ascending
+and descending order; there is no third unsorted activation state. Before a
+sort is selected, the table uses case-insensitive Name ascending order with an
+exact Problem ID tie-breaker. Status and Times solved are not sortable in this
+phase.
+
 Sorting by category must place problems of the same category next to one another.
 
 Visual category grouping with separate group headers is not required initially.

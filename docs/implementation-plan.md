@@ -454,7 +454,10 @@ Category/tag deletion and automatic review behavior must be tested against Postg
 ### Task 27 — Search, filtering, and sorting
 
 - **Objective:** Implement all derived table behavior.
-- **Scope:** Normalization, search predicate, OR tag filter, combined pipeline, every sort mode, stable tie-breaking, controls.
+- **Scope:** Normalization, search predicate, OR tag filter, combined pipeline,
+  product-defined Name/Category/Difficulty/Last-reviewed sort modes, stable
+  tie-breaking, and controls. Status and Times solved are excluded by the
+  current product specification.
 - **Areas:** Pure utilities/tests, computed store state, toolbar.
 - **Dependencies:** Task 22.
 - **Acceptance:** Required search fields and normalization work; tag filtering is OR; empty selections have no effect; empty sort values remain last; no API requests occur.

@@ -380,6 +380,16 @@ includes an explicit **Unspecified** option for Problems whose value is `null`.
 Selected Tags use the product-defined OR behavior: a Problem matches when it
 contains any selected Tag. The separate filter groups combine with AND.
 
+## Sorting
+
+The table locally sorts the filtered collection by one active field: Name,
+Category, Difficulty, or Last reviewed. Activating a sortable header toggles
+ascending and descending order; the default before selection remains
+case-insensitive Name ascending with exact decimal-string ID tie-breaking.
+Difficulty and unreviewed values remain last in either direction, and local
+mutations reuse the selected sort without reloading a collection. Status and
+Times solved are not sortable in this phase.
+
 The result summary distinguishes filtered and total counts. **Clear filters**
 resets only filter state, while canonical Problems, expanded rows, dirty forms,
 pending actions, and row errors remain unchanged. A filtered collection with no

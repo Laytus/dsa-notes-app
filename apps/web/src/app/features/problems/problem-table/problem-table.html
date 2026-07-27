@@ -3,12 +3,20 @@
     <thead>
       <tr>
         <th scope="col"><span class="visually-hidden">Expand</span></th>
-        <th scope="col">Name</th>
-        <th scope="col">Category</th>
+        <th scope="col" [attr.aria-sort]="sortDirection('name')">
+          <button type="button" class="sort-button" [attr.aria-label]="sortButtonLabel('name', 'Name')" (click)="sortRequested.emit('name')">Name <span aria-hidden="true">{{ isSorted('name') ? activeSort()!.direction === 'ascending' ? '↑' : '↓' : '↕' }}</span></button>
+        </th>
+        <th scope="col" [attr.aria-sort]="sortDirection('category')">
+          <button type="button" class="sort-button" [attr.aria-label]="sortButtonLabel('category', 'Category')" (click)="sortRequested.emit('category')">Category <span aria-hidden="true">{{ isSorted('category') ? activeSort()!.direction === 'ascending' ? '↑' : '↓' : '↕' }}</span></button>
+        </th>
         <th scope="col">Tags</th>
-        <th scope="col">Difficulty</th>
+        <th scope="col" [attr.aria-sort]="sortDirection('difficulty')">
+          <button type="button" class="sort-button" [attr.aria-label]="sortButtonLabel('difficulty', 'Difficulty')" (click)="sortRequested.emit('difficulty')">Difficulty <span aria-hidden="true">{{ isSorted('difficulty') ? activeSort()!.direction === 'ascending' ? '↑' : '↓' : '↕' }}</span></button>
+        </th>
         <th scope="col">Status</th>
-        <th scope="col">Last reviewed</th>
+        <th scope="col" [attr.aria-sort]="sortDirection('lastReviewedOn')">
+          <button type="button" class="sort-button" [attr.aria-label]="sortButtonLabel('lastReviewedOn', 'Last reviewed')" (click)="sortRequested.emit('lastReviewedOn')">Last reviewed <span aria-hidden="true">{{ isSorted('lastReviewedOn') ? activeSort()!.direction === 'ascending' ? '↑' : '↓' : '↕' }}</span></button>
+        </th>
         <th scope="col">Times solved</th>
         <th scope="col">Solution</th>
         <th scope="col">Source</th>

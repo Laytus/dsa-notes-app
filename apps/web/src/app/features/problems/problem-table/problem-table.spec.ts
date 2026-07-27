@@ -66,12 +66,12 @@ describe('ProblemTable', () => {
 
     expect(headers).toEqual([
       'Expand',
-      'Name',
-      'Category',
+      'Name ↕',
+      'Category ↕',
       'Tags',
-      'Difficulty',
+      'Difficulty ↕',
       'Status',
-      'Last reviewed',
+      'Last reviewed ↕',
       'Times solved',
       'Solution',
       'Source',
@@ -81,6 +81,43 @@ describe('ProblemTable', () => {
     expect(fixture.nativeElement.textContent).toContain('Arrays');
     expect(fixture.nativeElement.textContent).toContain('Needs review');
     expect(fixture.nativeElement.textContent).toContain('2026-07-25');
+  });
+
+  it('exposes only product-supported columns as accessible sort buttons', () => {
+    const fixture = createFixture();
+    const buttons = fixture.nativeElement.querySelectorAll(
+      '.sort-button',
+    ) as NodeListOf<HTMLButtonElement>;
+
+    expect(Array.from(buttons, ({ textContent }) => textContent?.trim())).toEqual([
+      'Name ↕',
+      'Category ↕',
+      'Difficulty ↕',
+      'Last reviewed ↕',
+    ]);
+    expect(buttons[0]?.type).toBe('button');
+    expect(buttons[0]?.getAttribute('aria-label')).toBe('Sort by Name ascending');
+    expect(fixture.nativeElement.querySelector('th[aria-sort="none"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.status .sort-button')).toBeNull();
+  });
+
+  it('announces the active sort direction and emits the selected field', () => {
+    const fixture = createFixture();
+    const emitted = vi.fn();
+    fixture.componentInstance.sortRequested.subscribe(emitted);
+    fixture.componentRef.setInput('activeSort', {
+      field: 'name' as const,
+      direction: 'ascending' as const,
+    });
+    fixture.detectChanges();
+
+    const nameHeader = fixture.nativeElement.querySelector(
+      'th[aria-sort="ascending"]',
+    ) as HTMLTableCellElement;
+    const button = nameHeader.querySelector('.sort-button') as HTMLButtonElement;
+    expect(button.getAttribute('aria-label')).toBe('Sort by Name descending');
+    button.click();
+    expect(emitted).toHaveBeenCalledWith('name');
   });
 
   it('renders tags in API order and explicit placeholders for empty values', () => {

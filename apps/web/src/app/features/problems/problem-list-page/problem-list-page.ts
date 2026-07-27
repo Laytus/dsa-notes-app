@@ -36,19 +36,12 @@ import {
 } from '../inline-problem-edit';
 import { ReferenceAdminPanel } from '../reference-admin-panel/reference-admin-panel';
 import { ProblemTable } from '../problem-table/problem-table';
-
-function compareProblems(left: Problem, right: Problem): number {
-  const leftName = left.name.toLowerCase();
-  const rightName = right.name.toLowerCase();
-  if (leftName < rightName) return -1;
-  if (leftName > rightName) return 1;
-
-  const leftId = BigInt(left.id);
-  const rightId = BigInt(right.id);
-  if (leftId < rightId) return -1;
-  if (leftId > rightId) return 1;
-  return 0;
-}
+import {
+  compareDefaultProblems,
+  sortProblems,
+  type ProblemSort,
+  type ProblemSortField,
+} from '../problem-sorting';
 
 function compareNamedResources(
   left: { readonly id: string; readonly name: string },
@@ -101,6 +94,7 @@ export class ProblemListPage {
   readonly selectedDifficulty = signal<DifficultyFilter>(null);
   readonly selectedStatus = signal<ProblemStatus | null>(null);
   readonly selectedTagIds = signal<readonly string[]>([]);
+  readonly activeSort = signal<ProblemSort | null>(null);
   readonly activePanel = signal<ActivePanel | null>(null);
   readonly referenceAdminOpen = signal(false);
   readonly successMessage = signal<string | null>(null);
@@ -130,6 +124,9 @@ export class ProblemListPage {
   }));
   readonly filteredProblems = computed(() =>
     filterProblems(this.problems(), this.filters()),
+  );
+  readonly visibleProblems = computed(() =>
+    sortProblems(this.filteredProblems(), this.activeSort()),
   );
   readonly filtersActive = computed(() => {
     const filters = this.filters();
@@ -310,6 +307,19 @@ export class ProblemListPage {
     this.selectedDifficulty.set(null);
     this.selectedStatus.set(null);
     this.selectedTagIds.set([]);
+  }
+
+  setSort(field: ProblemSortField): void {
+    const current = this.activeSort();
+    this.activeSort.set(
+      current?.field === field
+        ? {
+            field,
+            direction:
+              current.direction === 'ascending' ? 'descending' : 'ascending',
+          }
+        : { field, direction: 'ascending' },
+    );
   }
 
   openCreatePanel(): void {
@@ -749,13 +759,13 @@ export class ProblemListPage {
     this.problems.update((current) =>
       current
         .map((item) => (item.id === problem.id ? problem : item))
-        .sort(compareProblems),
+        .sort(compareDefaultProblems),
     );
   }
 
   private insertProblem(problem: Problem): void {
     this.problems.update((current) =>
-      [...current, problem].sort(compareProblems),
+      [...current, problem].sort(compareDefaultProblems),
     );
   }
 
