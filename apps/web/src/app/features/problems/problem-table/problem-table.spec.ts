@@ -196,6 +196,37 @@ describe('ProblemTable', () => {
     expect(document.activeElement).toBe(editButton);
   });
 
+  it('opens one accessible inline editor and exposes explicit Save and Cancel controls', () => {
+    const fixture = createFixture();
+    const requested = vi.fn();
+    fixture.componentInstance.inlineEditRequested.subscribe(requested);
+    const trigger = fixture.nativeElement.querySelector(
+      '[data-field="name"]',
+    ) as HTMLButtonElement;
+
+    trigger.click();
+    expect(requested).toHaveBeenCalledWith({
+      problem: completeProblem,
+      field: 'name',
+    });
+
+    fixture.componentRef.setInput('inlineEdit', {
+      problemId: completeProblem.id,
+      field: 'name' as const,
+      originalValue: completeProblem.name,
+      draft: 'Changed',
+    });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('.inline-editor')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.inline-save')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.inline-cancel')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.inline-editor')).toHaveProperty(
+      'value',
+      'Changed',
+    );
+  });
+
   it('disables Edit with an accessible explanation when a category is unavailable', () => {
     const fixture = createFixture();
     fixture.componentRef.setInput('editableIds', new Set<string>());

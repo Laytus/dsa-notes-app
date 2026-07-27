@@ -28,6 +28,12 @@ import {
 } from '../problem-filters';
 import { ProblemFormPanel } from '../problem-form-panel/problem-form-panel';
 import { POSTGRES_INTEGER_MAX } from '../problem-review';
+import {
+  initialInlineValue,
+  inlineUpdateRequest,
+  type InlineProblemEdit,
+  type InlineProblemField,
+} from '../inline-problem-edit';
 import { ReferenceAdminPanel } from '../reference-admin-panel/reference-admin-panel';
 import { ProblemTable } from '../problem-table/problem-table';
 
@@ -104,6 +110,9 @@ export class ProblemListPage {
   readonly deleteErrors = signal<ReadonlyMap<string, string>>(new Map());
   readonly reviewingIds = signal<ReadonlySet<string>>(new Set());
   readonly reviewErrors = signal<ReadonlyMap<string, string>>(new Map());
+  readonly inlineEdit = signal<InlineProblemEdit | null>(null);
+  readonly inlineSaving = signal(false);
+  readonly inlineError = signal<string | null>(null);
   readonly difficulties: readonly Difficulty[] = ['Easy', 'Medium', 'Hard'];
   readonly statuses: readonly ProblemStatus[] = [
     'To solve',
@@ -306,12 +315,14 @@ export class ProblemListPage {
   openCreatePanel(): void {
     if (!this.canCreate()) return;
     if (this.activePanel()?.mode === 'create') return;
+    if (!this.resolveInlineEdit()) return;
     if (!this.canSwitchPanel()) return;
     this.successMessage.set(null);
     this.activePanel.set({ mode: 'create' });
   }
 
   openReferenceAdmin(): void {
+    if (!this.resolveInlineEdit()) return;
     this.referenceAdminOpen.set(true);
   }
 
@@ -408,6 +419,7 @@ export class ProblemListPage {
     if (this.reviewingIds().has(problem.id)) return;
     const active = this.activePanel();
     if (active?.mode === 'edit' && active.problem.id === problem.id) return;
+    if (!this.resolveInlineEdit()) return;
     if (!this.canSwitchPanel()) return;
     this.successMessage.set(null);
     this.activePanel.set({ mode: 'edit', problem });
@@ -438,6 +450,7 @@ export class ProblemListPage {
   }
 
   requestDelete(problem: Problem): void {
+    if (!this.resolveInlineEdit()) return;
     if (this.deletingIds().has(problem.id)) return;
     if (this.duplicatingIds().has(problem.id)) return;
     if (this.reviewingIds().has(problem.id)) return;
@@ -492,6 +505,7 @@ export class ProblemListPage {
   }
 
   requestReview(problem: Problem): void {
+    if (!this.resolveInlineEdit()) return;
     if (
       this.reviewingIds().has(problem.id) ||
       this.duplicatingIds().has(problem.id) ||
@@ -526,6 +540,7 @@ export class ProblemListPage {
   }
 
   requestDuplicate(problem: Problem): void {
+    if (!this.resolveInlineEdit()) return;
     if (
       this.duplicatingIds().has(problem.id) ||
       this.deletingIds().has(problem.id) ||
@@ -562,6 +577,94 @@ export class ProblemListPage {
 
   private canSwitchPanel(): boolean {
     return this.activePanel() === null || (this.formPanel()?.canDiscardChanges() ?? true);
+  }
+
+  requestInlineEdit({
+    problem,
+    field,
+  }: {
+    readonly problem: Problem;
+    readonly field: InlineProblemField;
+  }): void {
+    const active = this.inlineEdit();
+    if (
+      active?.problemId === problem.id &&
+      active.field === field
+    ) return;
+    if (!this.resolveInlineEdit()) return;
+    const value = initialInlineValue(problem, field);
+    this.inlineEdit.set({
+      problemId: problem.id,
+      field,
+      originalValue: value,
+      draft: value,
+    });
+    this.inlineError.set(null);
+    queueMicrotask(() => this.problemTable()?.focusInlineEditor());
+  }
+
+  updateInlineDraft(draft: string): void {
+    this.inlineEdit.update((current) =>
+      current === null ? null : { ...current, draft },
+    );
+  }
+
+  saveInlineEdit(): void {
+    const edit = this.inlineEdit();
+    if (edit === null || this.inlineSaving()) return;
+    const outcome = inlineUpdateRequest(edit, this.categories());
+    if (outcome === null) {
+      this.closeInlineEdit();
+      return;
+    }
+    if ('error' in outcome) {
+      this.inlineError.set(outcome.error);
+      return;
+    }
+
+    this.inlineError.set(null);
+    this.inlineSaving.set(true);
+    this.problemsApi
+      .updateProblem(edit.problemId, outcome.request)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (updated) => {
+          this.inlineSaving.set(false);
+          this.replaceProblem(updated);
+          this.closeInlineEdit();
+        },
+        error: (error: unknown) => {
+          this.inlineSaving.set(false);
+          this.inlineError.set(this.inlineErrorMessage(error));
+        },
+      });
+  }
+
+  cancelInlineEdit(): void {
+    if (this.inlineSaving()) return;
+    this.closeInlineEdit();
+  }
+
+  private resolveInlineEdit(): boolean {
+    const edit = this.inlineEdit();
+    if (edit === null) return true;
+    if (this.inlineSaving()) return false;
+    if (edit.draft !== edit.originalValue && !window.confirm('Discard unsaved inline changes?')) {
+      return false;
+    }
+    this.closeInlineEdit();
+    return true;
+  }
+
+  private closeInlineEdit(): void {
+    const edit = this.inlineEdit();
+    this.inlineEdit.set(null);
+    this.inlineError.set(null);
+    if (edit) {
+      queueMicrotask(() =>
+        this.problemTable()?.focusInlineTrigger(edit.problemId, edit.field),
+      );
+    }
   }
 
   private inputValue(event: Event): string {
@@ -696,5 +799,14 @@ export class ProblemListPage {
       }
     }
     return 'The problem could not be marked reviewed. Try again.';
+  }
+
+  private inlineErrorMessage(error: unknown): string {
+    if (error instanceof HttpErrorResponse) {
+      if (error.status === 0) return 'Could not connect to the API. Try again.';
+      if (error.status === 404) return 'This problem no longer exists on the server.';
+      if (error.status === 400) return 'This value was rejected. Check it and try again.';
+    }
+    return 'The change could not be saved. Try again.';
   }
 }

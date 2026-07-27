@@ -430,7 +430,9 @@ Category/tag deletion and automatic review behavior must be tested against Postg
 ### Task 25 — Inline editing
 
 - **Objective:** Add deferred persistence for simple fields.
-- **Scope:** Name, category, difficulty, status, date, count; Enter/blur commit, Escape cancel, one request per confirmed edit.
+- **Scope:** Name, category, difficulty, status, and count; explicit Save/Cancel,
+  Enter commit, Escape cancel, and one request per confirmed edit. Last reviewed
+  remains server-derived read state and is not inline editable.
 - **Areas:** Table editing state/components/tests.
 - **Dependencies:** Tasks 17, 22, 24.
 - **Acceptance:** No writes per keystroke; invalid edits preserve valid state; failures restore server state; backend review-date response is authoritative.

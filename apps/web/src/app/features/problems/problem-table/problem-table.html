@@ -33,8 +33,22 @@
               <span aria-hidden="true">{{ isExpanded(problem.id) ? '−' : '+' }}</span>
             </button>
           </td>
-          <th scope="row" class="name-cell">{{ problem.name }}</th>
-          <td>{{ problem.category.name }}</td>
+          <th scope="row" class="name-cell">
+            @if (inlineEdit()?.problemId === problem.id && inlineEdit()?.field === 'name') {
+              <input #inlineEditor class="inline-editor" [attr.aria-label]="'Edit name for ' + problem.name" [value]="inlineEdit()!.draft" (input)="inlineDraftChanged.emit($any($event.target).value)" (keydown.enter)="inlineSaveRequested.emit()" (keydown.escape)="inlineCancelRequested.emit()" />
+            } @else {
+              <button #inlineTrigger type="button" class="inline-trigger" [attr.data-problem-id]="problem.id" data-field="name" [disabled]="inlinePendingProblemId() === problem.id" [attr.aria-label]="'Edit name for ' + problem.name" (click)="inlineEditRequested.emit({ problem, field: 'name' })">{{ problem.name }}</button>
+            }
+          </th>
+          <td>
+            @if (inlineEdit()?.problemId === problem.id && inlineEdit()?.field === 'categoryId') {
+              <select #inlineEditor class="inline-editor" [attr.aria-label]="'Edit category for ' + problem.name" [value]="inlineEdit()!.draft" (change)="inlineDraftChanged.emit($any($event.target).value)" (keydown.enter)="inlineSaveRequested.emit()" (keydown.escape)="inlineCancelRequested.emit()">
+                @for (category of categories(); track category.id) { <option [value]="category.id">{{ category.name }}</option> }
+              </select>
+            } @else {
+              <button #inlineTrigger type="button" class="inline-trigger" [attr.data-problem-id]="problem.id" data-field="categoryId" [disabled]="inlinePendingProblemId() === problem.id" [attr.aria-label]="'Edit category for ' + problem.name" (click)="inlineEditRequested.emit({ problem, field: 'categoryId' })">{{ problem.category.name }}</button>
+            }
+          </td>
           <td>
             @if (problem.tags.length > 0) {
               <ul class="tag-list" [attr.aria-label]="'Tags for ' + problem.name">
@@ -47,15 +61,27 @@
             }
           </td>
           <td>
-            @if (problem.difficulty) {
-              <span class="badge difficulty">{{ problem.difficulty }}</span>
+            @if (inlineEdit()?.problemId === problem.id && inlineEdit()?.field === 'difficulty') {
+              <select #inlineEditor class="inline-editor" [attr.aria-label]="'Edit difficulty for ' + problem.name" [value]="inlineEdit()!.draft" (change)="inlineDraftChanged.emit($any($event.target).value)" (keydown.enter)="inlineSaveRequested.emit()" (keydown.escape)="inlineCancelRequested.emit()"><option value="">Unspecified</option>@for (difficulty of difficulties(); track difficulty) { <option [value]="difficulty">{{ difficulty }}</option> }</select>
             } @else {
-              <span class="placeholder">—</span>
+              <button #inlineTrigger type="button" class="inline-trigger" [attr.data-problem-id]="problem.id" data-field="difficulty" [disabled]="inlinePendingProblemId() === problem.id" [attr.aria-label]="'Edit difficulty for ' + problem.name" (click)="inlineEditRequested.emit({ problem, field: 'difficulty' })">@if (problem.difficulty) { <span class="badge difficulty">{{ problem.difficulty }}</span> } @else { <span class="placeholder">—</span> }</button>
             }
           </td>
-          <td><span class="badge status">{{ problem.status }}</span></td>
+          <td>
+            @if (inlineEdit()?.problemId === problem.id && inlineEdit()?.field === 'status') {
+              <select #inlineEditor class="inline-editor" [attr.aria-label]="'Edit status for ' + problem.name" [value]="inlineEdit()!.draft" (change)="inlineDraftChanged.emit($any($event.target).value)" (keydown.enter)="inlineSaveRequested.emit()" (keydown.escape)="inlineCancelRequested.emit()">@for (status of statuses(); track status) { <option [value]="status">{{ status }}</option> }</select>
+            } @else {
+              <button #inlineTrigger type="button" class="inline-trigger" [attr.data-problem-id]="problem.id" data-field="status" [disabled]="inlinePendingProblemId() === problem.id" [attr.aria-label]="'Edit status for ' + problem.name" (click)="inlineEditRequested.emit({ problem, field: 'status' })"><span class="badge status">{{ problem.status }}</span></button>
+            }
+          </td>
           <td class="nowrap">{{ problem.lastReviewedOn ?? '—' }}</td>
-          <td class="number-cell">{{ problem.timesSolved }}</td>
+          <td class="number-cell">
+            @if (inlineEdit()?.problemId === problem.id && inlineEdit()?.field === 'timesSolved') {
+              <input #inlineEditor class="inline-editor times-solved-editor" [attr.aria-label]="'Edit times solved for ' + problem.name" inputmode="numeric" [value]="inlineEdit()!.draft" (input)="inlineDraftChanged.emit($any($event.target).value)" (keydown.enter)="inlineSaveRequested.emit()" (keydown.escape)="inlineCancelRequested.emit()" />
+            } @else {
+              <button #inlineTrigger type="button" class="inline-trigger" [attr.data-problem-id]="problem.id" data-field="timesSolved" [disabled]="inlinePendingProblemId() === problem.id" [attr.aria-label]="'Edit times solved for ' + problem.name" (click)="inlineEditRequested.emit({ problem, field: 'timesSolved' })">{{ problem.timesSolved }}</button>
+            }
+          </td>
           <td>
             @if (problem.solution; as solution) {
               <a [href]="solution.url" target="_blank" rel="noopener noreferrer">
@@ -75,6 +101,13 @@
             }
           </td>
           <td class="action-cell">
+            @if (inlineEdit()?.problemId === problem.id) {
+              <div class="inline-actions">
+                <button type="button" class="inline-save" [disabled]="inlineSaving()" (click)="inlineSaveRequested.emit()">{{ inlineSaving() ? 'Saving…' : 'Save' }}</button>
+                <button type="button" class="inline-cancel" [disabled]="inlineSaving()" (click)="inlineCancelRequested.emit()">Cancel</button>
+              </div>
+              @if (inlineError(); as inlineErrorMessage) { <p class="action-error" role="alert">{{ inlineErrorMessage }}</p> }
+            }
             <button
               #editButton
               type="button"
@@ -93,7 +126,8 @@
                 !editableIds().has(problem.id) ||
                 duplicatingIds().has(problem.id) ||
                 deletingIds().has(problem.id) ||
-                reviewingIds().has(problem.id)
+                reviewingIds().has(problem.id) ||
+                inlinePendingProblemId() === problem.id
               "
               (click)="editRequested.emit(problem)"
             >
@@ -137,7 +171,8 @@
                 duplicatingIds().has(problem.id) ||
                 deletingIds().has(problem.id) ||
                 reviewingIds().has(problem.id) ||
-                duplicateDisabledIds().has(problem.id)
+                duplicateDisabledIds().has(problem.id) ||
+                inlinePendingProblemId() === problem.id
               "
               (click)="duplicateRequested.emit(problem)"
             >
@@ -179,7 +214,8 @@
                 reviewingIds().has(problem.id) ||
                 duplicatingIds().has(problem.id) ||
                 deletingIds().has(problem.id) ||
-                reviewDisabledReasons().has(problem.id)
+                reviewDisabledReasons().has(problem.id) ||
+                inlinePendingProblemId() === problem.id
               "
               (click)="reviewRequested.emit(problem)"
             >
@@ -214,6 +250,7 @@
               [disabled]="
                 deletingIds().has(problem.id) || reviewingIds().has(problem.id)
                 || duplicatingIds().has(problem.id)
+                || inlinePendingProblemId() === problem.id
               "
               (click)="deleteRequested.emit(problem)"
             >

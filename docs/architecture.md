@@ -86,6 +86,15 @@ Problem and the existing name/decimal-ID comparator is reapplied. The table
 component retains expansion state by immutable Problem ID, so an edited row
 remains expanded.
 
+Inline editing is owned by the Problems page as one active editor across the
+table. It supports only Name, Category, Difficulty, Status, and Times solved.
+Each editor sends a one-field PATCH only after explicit Save or Enter; Escape
+and Cancel discard the draft, and blur never writes. Last reviewed remains
+read-only hydrated state. A Times solved PATCH relies entirely on the server's
+locked comparison and returned hydrated date. Successful responses replace the
+canonical Problem immutably without reloading collections, preserving filters
+and expansion.
+
 Categories must be available and contain the Problem's current Category before
 Edit is enabled. A Tags load failure does not block editing other fields: tag
 controls are unavailable and the original tag IDs are included unchanged in

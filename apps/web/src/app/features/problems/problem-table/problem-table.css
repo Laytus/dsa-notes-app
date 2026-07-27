@@ -84,6 +84,57 @@ a:focus-visible {
   font-size: 0.95rem;
 }
 
+.inline-trigger {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 0.2rem;
+  text-align: inherit;
+}
+
+.inline-trigger:hover,
+.inline-trigger:focus-visible {
+  border-radius: 0.2rem;
+  background: #e6f6ff;
+  outline: 2px solid #62b0e8;
+  outline-offset: 1px;
+}
+
+.inline-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.inline-editor {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 7rem;
+  border: 1px solid #2680c2;
+  border-radius: 0.25rem;
+  background: #fff;
+  color: #102a43;
+  font: inherit;
+  padding: 0.35rem;
+}
+
+.inline-actions { display: flex; gap: 0.35rem; justify-content: center; }
+
+.inline-save,
+.inline-cancel {
+  border: 1px solid #486581;
+  border-radius: 0.3rem;
+  background: #fff;
+  color: #334e68;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 0.35rem 0.5rem;
+}
+
+.inline-save { border-color: #2680c2; color: #0b69a3; }
+
 .tag-list {
   display: flex;
   flex-wrap: wrap;

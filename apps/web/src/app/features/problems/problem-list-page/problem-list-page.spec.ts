@@ -2068,4 +2068,63 @@ describe('ProblemListPage', () => {
     expect(duplicateProblem).toHaveBeenCalledTimes(2);
     expect(fixture.componentInstance.problems()).toContainEqual(duplicate);
   });
+
+  it('saves a changed inline name with a field-only PATCH and preserves expansion', async () => {
+    const response = new Subject<Problem>();
+    updateProblem.mockReturnValue(response);
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completeLoadedPage([problem]);
+    fixture.detectChanges();
+    const table = fixture.debugElement.query(
+      By.directive(ProblemTable),
+    ).componentInstance as ProblemTable;
+    table.toggle(problem.id);
+
+    fixture.componentInstance.requestInlineEdit({ problem, field: 'name' });
+    fixture.componentInstance.updateInlineDraft('  Updated Two Sum  ');
+    fixture.componentInstance.saveInlineEdit();
+
+    expect(updateProblem).toHaveBeenCalledWith('1', { name: 'Updated Two Sum' });
+    expect(fixture.componentInstance.inlineSaving()).toBe(true);
+    response.next({ ...problem, name: 'Updated Two Sum' });
+    response.complete();
+    fixture.detectChanges();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+
+    expect(fixture.componentInstance.inlineEdit()).toBeNull();
+    expect(fixture.componentInstance.problems()[0]?.name).toBe('Updated Two Sum');
+    expect(table.isExpanded(problem.id)).toBe(true);
+    expect(getProblems).toHaveBeenCalledTimes(1);
+    expect(getCategories).toHaveBeenCalledTimes(1);
+    expect(getTags).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps an inline validation error open and cancels without a request', () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completeLoadedPage([problem]);
+    fixture.detectChanges();
+
+    fixture.componentInstance.requestInlineEdit({ problem, field: 'timesSolved' });
+    fixture.componentInstance.updateInlineDraft('-1');
+    fixture.componentInstance.saveInlineEdit();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.inlineEdit()?.draft).toBe('-1');
+    expect(fixture.nativeElement.textContent).toContain('non-negative integer');
+    expect(updateProblem).not.toHaveBeenCalled();
+    fixture.componentInstance.cancelInlineEdit();
+    expect(fixture.componentInstance.inlineEdit()).toBeNull();
+  });
+
+  it('does not send a PATCH for an unchanged inline value', () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completeLoadedPage([problem]);
+    fixture.detectChanges();
+
+    fixture.componentInstance.requestInlineEdit({ problem, field: 'status' });
+    fixture.componentInstance.saveInlineEdit();
+
+    expect(updateProblem).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.inlineEdit()).toBeNull();
+  });
 });

@@ -362,8 +362,10 @@ Markdown. Date-only `lastReviewedOn` values are displayed exactly as returned
 by the API, avoiding timezone conversion.
 
 Solution and Source use the API-provided labels and URLs, open in a new tab,
-and include safe `rel` attributes. Editing uses the side panel; inline editing
-is not implemented.
+and include safe `rel` attributes. Name, Category, Difficulty, Status, and
+Times solved support explicit Save/Cancel inline editing. Tags, links, and
+Notes remain in the side panel. Last reviewed is read-only server-derived state;
+changing Times solved sends only the count and uses the hydrated response.
 
 ## Problem search and filters
 

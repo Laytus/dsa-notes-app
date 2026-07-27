@@ -222,10 +222,21 @@
           [reviewingIds]="reviewingIds()"
           [reviewErrors]="reviewErrors()"
           [reviewDisabledReasons]="reviewDisabledReasons()"
+          [categories]="categories()"
+          [difficulties]="difficulties"
+          [statuses]="statuses"
+          [inlineEdit]="inlineEdit()"
+          [inlineSaving]="inlineSaving()"
+          [inlineError]="inlineError()"
+          [inlinePendingProblemId]="inlineSaving() ? inlineEdit()?.problemId ?? null : null"
           (editRequested)="openEditPanel($event)"
           (duplicateRequested)="requestDuplicate($event)"
           (deleteRequested)="requestDelete($event)"
           (reviewRequested)="requestReview($event)"
+          (inlineEditRequested)="requestInlineEdit($event)"
+          (inlineDraftChanged)="updateInlineDraft($event)"
+          (inlineSaveRequested)="saveInlineEdit()"
+          (inlineCancelRequested)="cancelInlineEdit()"
         />
       }
   }

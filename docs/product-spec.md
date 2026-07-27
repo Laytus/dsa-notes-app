@@ -283,13 +283,13 @@ Expanding a row does not automatically enter edit mode.
 | Category | Single-select dropdown |
 | Difficulty | Single-select dropdown |
 | Status | Single-select dropdown |
-| Last reviewed | Date input |
 | Times solved | Numeric input with optional `−` and `+` controls |
 
-Inline edits are persisted when the user:
+`Last reviewed` is read-only server-derived state and is not inline editable.
+It changes only through the backend's `Times solved` comparison rule.
 
-- confirms with Enter where applicable; or
-- leaves the control after making a valid change.
+Inline edits use explicit Save and Cancel controls. Enter confirms a valid
+changed value and Escape cancels; blur alone never persists a change.
 
 The application must not submit one API request per keystroke.
 
