@@ -14,3 +14,23 @@ body {
 * {
   box-sizing: border-box;
 }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+app-problem-table .right-sticky-opaque {
+  box-sizing: border-box;
+  width: var(--actions-width);
+  min-width: var(--actions-width);
+  max-width: var(--actions-width);
+  background-clip: border-box;
+  border-left: 1px solid #d9e2ec;
+  isolation: isolate;
+}

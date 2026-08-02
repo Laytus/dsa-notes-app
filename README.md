@@ -361,6 +361,20 @@ plain-text Notes and UTC creation/update timestamps. Notes are not parsed as
 Markdown. Date-only `lastReviewedOn` values are displayed exactly as returned
 by the API, avoiding timezone conversion.
 
+The table has a viewport-relative two-axis scroll region with a sticky header.
+On wide desktops, Expand, Name, Category, Tags, Difficulty, Status, and the
+right-side Actions group remain frozen while horizontally scrolling. The wide
+mode starts above 1540px, leaving a 24rem central viewport beside the frozen
+regions. Medium widths (1051px–1540px) freeze Expand, Name, Category, and
+Actions; narrow widths (761px–1050px) freeze Expand and Name with Actions on
+the right; Actions returns to normal horizontal-table flow at 760px and below.
+Sticky values wrap within their
+fixed columns, while non-sticky Notes and link previews may use ellipsis.
+Collapsed rows show at most two Tags plus a `+N` indicator and expose full text
+through accessible labels, native titles, or expansion. Notes use a single-line
+raw-text preview in the collapsed table and remain fully available in the
+expanded row.
+
 Solution and Source use the API-provided labels and URLs, open in a new tab,
 and include safe `rel` attributes. Name, Category, Difficulty, Status, and
 Times solved support explicit Save/Cancel inline editing. Tags, links, and

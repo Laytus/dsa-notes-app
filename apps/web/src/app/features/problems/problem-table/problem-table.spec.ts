@@ -75,6 +75,7 @@ describe('ProblemTable', () => {
       'Times solved',
       'Solution',
       'Source',
+      'Notes',
       'Actions',
     ]);
     expect(fixture.nativeElement.textContent).toContain('Two Sum');
@@ -137,6 +138,162 @@ describe('ProblemTable', () => {
     expect(nullableRow.querySelector('a')).toBeNull();
   });
 
+  it('uses the documented sticky cells and compact previews without making details sticky', () => {
+    const fixture = createFixture();
+    const stickyHeaders = fixture.nativeElement.querySelectorAll(
+      'thead .sticky-cell',
+    );
+    const row = fixture.nativeElement.querySelector(
+      '[data-problem-id="12"]',
+    ) as HTMLTableRowElement;
+
+    expect(fixture.nativeElement.querySelector('.table-region')?.getAttribute('aria-label')).toBe('Problems table');
+    expect(stickyHeaders).toHaveLength(7);
+    expect(row.querySelectorAll('.sticky-cell')).toHaveLength(7);
+    expect(row.querySelector('.sticky-actions')).not.toBeNull();
+    expect(row.querySelector('.notes-preview')?.textContent).toContain('First line');
+    expect(row.querySelector('.notes-preview')?.getAttribute('title')).toContain('Second');
+
+    fixture.componentInstance.toggle('12');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.details-row .sticky-cell')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.details-row td')?.getAttribute('colspan')).toBe('12');
+  });
+
+  it('groups actions separately and constrains expanded content without sticky cells', () => {
+    const fixture = createFixture();
+    const row = fixture.nativeElement.querySelector(
+      '[data-problem-id="12"]',
+    ) as HTMLTableRowElement;
+
+    expect(row.querySelector('.actions-group')).not.toBeNull();
+    expect(row.querySelector('.actions-group .edit-button')).not.toBeNull();
+    expect(row.querySelector('.actions-group .review-button')).not.toBeNull();
+    expect(row.querySelector('.actions-group .delete-button')).not.toBeNull();
+    expect(row.querySelector('.sticky-actions.right-sticky-opaque.actions-sticky-layer')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('thead .sticky-actions.right-sticky-opaque.actions-sticky-layer')).not.toBeNull();
+    expect(row.querySelector('.left-boundary-wide')).not.toBeNull();
+    expect(row.querySelector('.left-boundary-medium')).not.toBeNull();
+    expect(row.querySelector('.left-boundary-narrow')).not.toBeNull();
+    fixture.componentInstance.toggle('12');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.expanded-content')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.expanded-notes')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.expanded-metadata')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.details-row .sticky-actions')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.details-grid .expanded-notes')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.details-grid .expanded-metadata')).not.toBeNull();
+  });
+
+  it('initializes inline Category editing with the current exact string ID', () => {
+    const fixture = createFixture([
+      {
+        ...completeProblem,
+        category: { id: '9007199254740993', name: 'Graphs' },
+      },
+    ]);
+    fixture.componentRef.setInput('categories', [
+      { id: '1', name: 'Arrays', createdAt: '', updatedAt: '' },
+      { id: '9007199254740993', name: 'Graphs', createdAt: '', updatedAt: '' },
+    ]);
+    fixture.componentRef.setInput('inlineEdit', {
+      problemId: '12',
+      field: 'categoryId',
+      originalValue: '9007199254740993',
+      draft: '9007199254740993',
+    });
+    fixture.detectChanges();
+
+    const select = fixture.nativeElement.querySelector(
+      'select[aria-label="Edit category for Two Sum"]',
+    ) as HTMLSelectElement;
+    expect(select.value).toBe('9007199254740993');
+    expect(select.options[1]?.selected).toBe(true);
+
+    const emitted = vi.fn();
+    fixture.componentInstance.inlineDraftChanged.subscribe(emitted);
+    select.value = '1';
+    select.dispatchEvent(new Event('change'));
+    expect(emitted).toHaveBeenCalledWith('1');
+  });
+
+  it('initializes Difficulty and Status editors from their exact hydrated values', () => {
+    const fixture = createFixture([{ ...completeProblem, difficulty: 'Medium' }]);
+    fixture.componentRef.setInput('difficulties', ['Easy', 'Medium', 'Hard']);
+    fixture.componentRef.setInput('statuses', [
+      'To solve',
+      'Attempted',
+      'Solved',
+      'Needs review',
+      'Mastered',
+    ]);
+    fixture.componentRef.setInput('inlineEdit', {
+      problemId: '12', field: 'difficulty', originalValue: 'Medium', draft: 'Medium',
+    });
+    fixture.detectChanges();
+
+    const difficulty = fixture.nativeElement.querySelector(
+      'select[aria-label="Edit difficulty for Two Sum"]',
+    ) as HTMLSelectElement;
+    expect(difficulty.value).toBe('Medium');
+
+    const changedDifficulty = vi.fn();
+    fixture.componentInstance.inlineDraftChanged.subscribe(changedDifficulty);
+    difficulty.value = 'Easy';
+    difficulty.dispatchEvent(new Event('change'));
+    expect(changedDifficulty).toHaveBeenCalledWith('Easy');
+
+    fixture.componentRef.setInput('inlineEdit', {
+      problemId: '12', field: 'status', originalValue: 'Needs review', draft: 'Needs review',
+    });
+    fixture.detectChanges();
+    const status = fixture.nativeElement.querySelector(
+      'select[aria-label="Edit status for Two Sum"]',
+    ) as HTMLSelectElement;
+    expect(status.value).toBe('Needs review');
+    status.value = 'To solve';
+    status.dispatchEvent(new Event('change'));
+    expect(changedDifficulty).toHaveBeenCalledWith('To solve');
+  });
+
+  it('selects the Unspecified Difficulty sentinel for a null hydrated value', () => {
+    const fixture = createFixture([nullableProblem]);
+    fixture.componentRef.setInput('difficulties', ['Easy', 'Medium', 'Hard']);
+    fixture.componentRef.setInput('inlineEdit', {
+      problemId: '13', field: 'difficulty', originalValue: '', draft: '',
+    });
+    fixture.detectChanges();
+
+    const select = fixture.nativeElement.querySelector(
+      'select[aria-label="Edit difficulty for Empty fields"]',
+    ) as HTMLSelectElement;
+    expect(select.value).toBe('');
+    expect(select.options[0]?.selected).toBe(true);
+  });
+
+  it('bounds the visual tag preview while retaining the complete accessible tag label', () => {
+    const fixture = createFixture([
+      {
+        ...completeProblem,
+        tags: [
+          { id: '1', name: 'Array' },
+          { id: '2', name: 'Hash Map' },
+          { id: '3', name: 'Two Pointers' },
+        ],
+      },
+    ]);
+    const list = fixture.nativeElement.querySelector('.tag-list') as HTMLUListElement;
+
+    expect(Array.from(list.querySelectorAll('li'), ({ textContent }) => textContent?.trim())).toEqual([
+      'Array',
+      'Hash Map',
+      '+1',
+    ]);
+    expect(list.getAttribute('aria-label')).toContain('Two Pointers');
+    expect(list.querySelectorAll('.tag-chip')).toHaveLength(3);
+    expect(list.querySelector('.tag-remainder')).not.toBeNull();
+  });
+
   it('renders links with API labels and safe new-tab attributes', () => {
     const fixture = createFixture();
     const links = fixture.nativeElement.querySelectorAll(
@@ -147,7 +304,11 @@ describe('ProblemTable', () => {
     expect(links[0]?.textContent).toContain('View solution');
     expect(links[0]?.target).toBe('_blank');
     expect(links[0]?.rel).toBe('noopener noreferrer');
+    expect(links[0]?.classList).toContain('problem-link');
+    expect(links[1]?.classList).toContain('source-link');
     expect(links[1]?.textContent).toContain('LeetCode');
+    expect(fixture.nativeElement.querySelector('.badge.difficulty')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.badge.status')).not.toBeNull();
   });
 
   it('starts collapsed, expands safely, and collapses again', () => {

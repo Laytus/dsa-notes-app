@@ -122,4 +122,16 @@ export class ProblemTable {
     if (Number.isNaN(timestamp.getTime())) return 'Invalid timestamp';
     return timestamp.toISOString().replace('T', ' ').replace(/\.\d{3}Z$/u, ' UTC');
   }
+
+  previewTags(problem: Problem): readonly Problem['tags'][number][] {
+    return problem.tags.slice(0, 2);
+  }
+
+  remainingTagCount(problem: Problem): number {
+    return Math.max(0, problem.tags.length - this.previewTags(problem).length);
+  }
+
+  tagLabel(problem: Problem): string {
+    return problem.tags.map(({ name }) => name).join(', ');
+  }
 }

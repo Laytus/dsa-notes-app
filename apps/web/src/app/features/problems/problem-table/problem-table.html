@@ -1,32 +1,39 @@
 <div class="table-region" tabindex="0" aria-label="Problems table">
   <table>
+    <colgroup>
+      <col style="width: var(--expand-width)" /><col style="width: var(--name-width)" /><col style="width: var(--category-width)" />
+      <col style="width: var(--tags-width)" /><col style="width: var(--difficulty-width)" /><col style="width: var(--status-width)" />
+      <col style="width: var(--reviewed-width)" /><col style="width: var(--solved-width)" /><col style="width: var(--link-width)" />
+      <col style="width: var(--link-width)" /><col style="width: var(--notes-width)" /><col style="width: var(--actions-width)" />
+    </colgroup>
     <thead>
       <tr>
-        <th scope="col"><span class="visually-hidden">Expand</span></th>
-        <th scope="col" [attr.aria-sort]="sortDirection('name')">
+        <th scope="col" class="sticky-cell sticky-expand"><span class="visually-hidden">Expand</span></th>
+        <th scope="col" class="sticky-cell sticky-name sticky-left-boundary left-boundary-narrow" [attr.aria-sort]="sortDirection('name')">
           <button type="button" class="sort-button" [attr.aria-label]="sortButtonLabel('name', 'Name')" (click)="sortRequested.emit('name')">Name <span aria-hidden="true">{{ isSorted('name') ? activeSort()!.direction === 'ascending' ? '↑' : '↓' : '↕' }}</span></button>
         </th>
-        <th scope="col" [attr.aria-sort]="sortDirection('category')">
+        <th scope="col" class="sticky-cell sticky-category sticky-left-boundary left-boundary-medium" [attr.aria-sort]="sortDirection('category')">
           <button type="button" class="sort-button" [attr.aria-label]="sortButtonLabel('category', 'Category')" (click)="sortRequested.emit('category')">Category <span aria-hidden="true">{{ isSorted('category') ? activeSort()!.direction === 'ascending' ? '↑' : '↓' : '↕' }}</span></button>
         </th>
-        <th scope="col">Tags</th>
-        <th scope="col" [attr.aria-sort]="sortDirection('difficulty')">
+        <th scope="col" class="sticky-cell sticky-tags">Tags</th>
+        <th scope="col" class="sticky-cell sticky-difficulty" [attr.aria-sort]="sortDirection('difficulty')">
           <button type="button" class="sort-button" [attr.aria-label]="sortButtonLabel('difficulty', 'Difficulty')" (click)="sortRequested.emit('difficulty')">Difficulty <span aria-hidden="true">{{ isSorted('difficulty') ? activeSort()!.direction === 'ascending' ? '↑' : '↓' : '↕' }}</span></button>
         </th>
-        <th scope="col">Status</th>
+        <th scope="col" class="sticky-cell sticky-status sticky-left-boundary left-boundary-wide">Status</th>
         <th scope="col" [attr.aria-sort]="sortDirection('lastReviewedOn')">
           <button type="button" class="sort-button" [attr.aria-label]="sortButtonLabel('lastReviewedOn', 'Last reviewed')" (click)="sortRequested.emit('lastReviewedOn')">Last reviewed <span aria-hidden="true">{{ isSorted('lastReviewedOn') ? activeSort()!.direction === 'ascending' ? '↑' : '↓' : '↕' }}</span></button>
         </th>
         <th scope="col">Times solved</th>
         <th scope="col">Solution</th>
         <th scope="col">Source</th>
-        <th scope="col">Actions</th>
+        <th scope="col">Notes</th>
+        <th scope="col" class="sticky-cell sticky-actions right-sticky-opaque actions-sticky-layer">Actions</th>
       </tr>
     </thead>
     <tbody>
       @for (problem of problems(); track problem.id) {
         <tr class="problem-row" [attr.data-problem-id]="problem.id">
-          <td class="expand-cell">
+          <td class="expand-cell sticky-cell sticky-expand">
             <button
               type="button"
               class="expand-button"
@@ -41,43 +48,44 @@
               <span aria-hidden="true">{{ isExpanded(problem.id) ? '−' : '+' }}</span>
             </button>
           </td>
-          <th scope="row" class="name-cell">
+          <th scope="row" class="name-cell sticky-cell sticky-name sticky-left-boundary left-boundary-narrow">
             @if (inlineEdit()?.problemId === problem.id && inlineEdit()?.field === 'name') {
               <input #inlineEditor class="inline-editor" [attr.aria-label]="'Edit name for ' + problem.name" [value]="inlineEdit()!.draft" (input)="inlineDraftChanged.emit($any($event.target).value)" (keydown.enter)="inlineSaveRequested.emit()" (keydown.escape)="inlineCancelRequested.emit()" />
             } @else {
               <button #inlineTrigger type="button" class="inline-trigger" [attr.data-problem-id]="problem.id" data-field="name" [disabled]="inlinePendingProblemId() === problem.id" [attr.aria-label]="'Edit name for ' + problem.name" (click)="inlineEditRequested.emit({ problem, field: 'name' })">{{ problem.name }}</button>
             }
           </th>
-          <td>
+          <td class="sticky-cell sticky-category sticky-left-boundary left-boundary-medium">
             @if (inlineEdit()?.problemId === problem.id && inlineEdit()?.field === 'categoryId') {
               <select #inlineEditor class="inline-editor" [attr.aria-label]="'Edit category for ' + problem.name" [value]="inlineEdit()!.draft" (change)="inlineDraftChanged.emit($any($event.target).value)" (keydown.enter)="inlineSaveRequested.emit()" (keydown.escape)="inlineCancelRequested.emit()">
-                @for (category of categories(); track category.id) { <option [value]="category.id">{{ category.name }}</option> }
+                @for (category of categories(); track category.id) { <option [value]="category.id" [selected]="category.id === inlineEdit()!.draft">{{ category.name }}</option> }
               </select>
             } @else {
               <button #inlineTrigger type="button" class="inline-trigger" [attr.data-problem-id]="problem.id" data-field="categoryId" [disabled]="inlinePendingProblemId() === problem.id" [attr.aria-label]="'Edit category for ' + problem.name" (click)="inlineEditRequested.emit({ problem, field: 'categoryId' })">{{ problem.category.name }}</button>
             }
           </td>
-          <td>
+          <td class="sticky-cell sticky-tags">
             @if (problem.tags.length > 0) {
-              <ul class="tag-list" [attr.aria-label]="'Tags for ' + problem.name">
-                @for (tag of problem.tags; track tag.id) {
-                  <li>{{ tag.name }}</li>
+              <ul class="tag-list" [attr.aria-label]="'Tags for ' + problem.name + ': ' + tagLabel(problem)">
+                @for (tag of previewTags(problem); track tag.id) {
+                  <li class="tag-chip">{{ tag.name }}</li>
                 }
+                @if (remainingTagCount(problem) > 0) { <li class="tag-chip tag-remainder" [attr.aria-label]="remainingTagCount(problem) + ' more tags'">+{{ remainingTagCount(problem) }}</li> }
               </ul>
             } @else {
               <span class="placeholder">—</span>
             }
           </td>
-          <td>
+          <td class="sticky-cell sticky-difficulty">
             @if (inlineEdit()?.problemId === problem.id && inlineEdit()?.field === 'difficulty') {
-              <select #inlineEditor class="inline-editor" [attr.aria-label]="'Edit difficulty for ' + problem.name" [value]="inlineEdit()!.draft" (change)="inlineDraftChanged.emit($any($event.target).value)" (keydown.enter)="inlineSaveRequested.emit()" (keydown.escape)="inlineCancelRequested.emit()"><option value="">Unspecified</option>@for (difficulty of difficulties(); track difficulty) { <option [value]="difficulty">{{ difficulty }}</option> }</select>
+              <select #inlineEditor class="inline-editor" [attr.aria-label]="'Edit difficulty for ' + problem.name" [value]="inlineEdit()!.draft" (change)="inlineDraftChanged.emit($any($event.target).value)" (keydown.enter)="inlineSaveRequested.emit()" (keydown.escape)="inlineCancelRequested.emit()"><option value="" [selected]="inlineEdit()!.draft === ''">Unspecified</option>@for (difficulty of difficulties(); track difficulty) { <option [value]="difficulty" [selected]="difficulty === inlineEdit()!.draft">{{ difficulty }}</option> }</select>
             } @else {
               <button #inlineTrigger type="button" class="inline-trigger" [attr.data-problem-id]="problem.id" data-field="difficulty" [disabled]="inlinePendingProblemId() === problem.id" [attr.aria-label]="'Edit difficulty for ' + problem.name" (click)="inlineEditRequested.emit({ problem, field: 'difficulty' })">@if (problem.difficulty) { <span class="badge difficulty">{{ problem.difficulty }}</span> } @else { <span class="placeholder">—</span> }</button>
             }
           </td>
-          <td>
+          <td class="sticky-cell sticky-status sticky-left-boundary left-boundary-wide">
             @if (inlineEdit()?.problemId === problem.id && inlineEdit()?.field === 'status') {
-              <select #inlineEditor class="inline-editor" [attr.aria-label]="'Edit status for ' + problem.name" [value]="inlineEdit()!.draft" (change)="inlineDraftChanged.emit($any($event.target).value)" (keydown.enter)="inlineSaveRequested.emit()" (keydown.escape)="inlineCancelRequested.emit()">@for (status of statuses(); track status) { <option [value]="status">{{ status }}</option> }</select>
+              <select #inlineEditor class="inline-editor" [attr.aria-label]="'Edit status for ' + problem.name" [value]="inlineEdit()!.draft" (change)="inlineDraftChanged.emit($any($event.target).value)" (keydown.enter)="inlineSaveRequested.emit()" (keydown.escape)="inlineCancelRequested.emit()">@for (status of statuses(); track status) { <option [value]="status" [selected]="status === inlineEdit()!.draft">{{ status }}</option> }</select>
             } @else {
               <button #inlineTrigger type="button" class="inline-trigger" [attr.data-problem-id]="problem.id" data-field="status" [disabled]="inlinePendingProblemId() === problem.id" [attr.aria-label]="'Edit status for ' + problem.name" (click)="inlineEditRequested.emit({ problem, field: 'status' })"><span class="badge status">{{ problem.status }}</span></button>
             }
@@ -92,7 +100,7 @@
           </td>
           <td>
             @if (problem.solution; as solution) {
-              <a [href]="solution.url" target="_blank" rel="noopener noreferrer">
+              <a class="problem-link solution-link" [href]="solution.url" target="_blank" rel="noopener noreferrer">
                 {{ solution.label }}
               </a>
             } @else {
@@ -101,14 +109,18 @@
           </td>
           <td>
             @if (problem.source; as source) {
-              <a [href]="source.url" target="_blank" rel="noopener noreferrer">
+              <a class="problem-link source-link" [href]="source.url" target="_blank" rel="noopener noreferrer">
                 {{ source.label }}
               </a>
             } @else {
               <span class="placeholder">—</span>
             }
           </td>
-          <td class="action-cell">
+          <td class="notes-preview" [title]="problem.notes || null">
+            <span>{{ problem.notes || '—' }}</span>
+          </td>
+          <td class="action-cell sticky-cell sticky-actions right-sticky-opaque actions-sticky-layer">
+            <div class="actions-group">
             @if (inlineEdit()?.problemId === problem.id) {
               <div class="inline-actions">
                 <button type="button" class="inline-save" [disabled]="inlineSaving()" (click)="inlineSaveRequested.emit()">{{ inlineSaving() ? 'Saving…' : 'Save' }}</button>
@@ -273,18 +285,20 @@
                 {{ deleteError }}
               </p>
             }
+            </div>
           </td>
         </tr>
 
         @if (isExpanded(problem.id)) {
           <tr class="details-row" [id]="'problem-details-' + problem.id">
-            <td colspan="11">
+            <td colspan="12">
+              <div class="expanded-content">
               <div class="details-grid">
-                <section>
+                <section class="expanded-notes">
                   <h3>Notes</h3>
                   <p class="notes">{{ problem.notes || 'No notes have been added.' }}</p>
                 </section>
-                <dl>
+                <dl class="expanded-metadata">
                   <div>
                     <dt>Created</dt>
                     <dd>{{ formatTimestamp(problem.createdAt) }}</dd>
@@ -294,6 +308,7 @@
                     <dd>{{ formatTimestamp(problem.updatedAt) }}</dd>
                   </div>
                 </dl>
+              </div>
               </div>
             </td>
           </tr>

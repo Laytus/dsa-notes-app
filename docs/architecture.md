@@ -707,6 +707,23 @@ Requirements:
 - compact collapsed rows;
 - expanded rows without destroying alignment.
 
+The Problems table uses one focusable, viewport-relative two-axis scroll
+container with stable scrollbar space. Its sticky header remains inside that
+region. Wide desktops above 1540px freeze the six product-specified leading
+columns plus a right-side Actions group, reserving a 24rem central viewport;
+medium widths from 1051px through 1540px freeze Expand, Name, Category, and
+Actions; narrow widths from 761px through 1050px freeze Expand and Name with
+Actions on the right; at 760px and below Actions returns to normal flow.
+Component-local width variables, `border-box`, separated table borders, and
+separate left/right z-index layers prevent overlaps. Sticky values wrap within
+their fixed widths; only suitable non-sticky previews use ellipsis. Tags show
+the first two API-ordered values plus `+N`, while their full set remains in the
+accessible label. Notes are a raw single-line preview in the non-sticky
+collapsed column and complete text remains in the expanded row. Expanded
+content is a non-sticky full-width cell with a bounded, horizontally sticky
+inner container that stays within the visible scroll region and reserves space
+for the right Actions column.
+
 A large commercial data-grid dependency must not be introduced automatically.
 
 Before adding a table library, Codex must explain:

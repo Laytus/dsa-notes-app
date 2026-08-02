@@ -2128,6 +2128,32 @@ describe('ProblemListPage', () => {
     expect(fixture.componentInstance.inlineEdit()).toBeNull();
   });
 
+  it('does not send a PATCH for an unchanged inline Category string ID', () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completeLoadedPage([problem]);
+    fixture.detectChanges();
+
+    fixture.componentInstance.requestInlineEdit({ problem, field: 'categoryId' });
+    expect(fixture.componentInstance.inlineEdit()?.draft).toBe(problem.category.id);
+    fixture.componentInstance.saveInlineEdit();
+
+    expect(updateProblem).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.inlineEdit()).toBeNull();
+  });
+
+  it('does not send a PATCH for an unchanged inline Difficulty value', () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completeLoadedPage([problem]);
+    fixture.detectChanges();
+
+    fixture.componentInstance.requestInlineEdit({ problem, field: 'difficulty' });
+    expect(fixture.componentInstance.inlineEdit()?.draft).toBe(problem.difficulty);
+    fixture.componentInstance.saveInlineEdit();
+
+    expect(updateProblem).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.inlineEdit()).toBeNull();
+  });
+
   it('derives visible rows from filters followed by the active sort without reloading', () => {
     const fixture = TestBed.createComponent(ProblemListPage);
     const later: Problem = { ...problem, id: '2', name: 'Alpha' };

@@ -378,6 +378,12 @@ Category/tag deletion and automatic review behavior must be tested against Postg
 - **Areas:** Table styles/template/tests.
 - **Dependencies:** Task 19.
 - **Acceptance:** No overlap or transparency artifacts during two-axis scrolling; focus remains visible.
+- **Decision implemented:** Use a viewport-relative scroll region with stable
+  scrollbar space; wide mode above 1540px freezes
+  Expand/Name/Category/Tags/Difficulty/Status plus right Actions while retaining
+  a 24rem central viewport; medium mode from 1051px through 1540px freezes
+  Expand/Name/Category plus Actions; narrow mode from 761px through 1050px
+  freezes Expand/Name plus Actions; Actions returns to normal flow at 760px.
 - **Validation:** Manual browser inspection at multiple widths plus structural tests.
 - **Commands:** Web test/build.
 - **Risks/decisions:** Six sticky columns may require a documented minimum viewport.
