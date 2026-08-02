@@ -463,6 +463,16 @@ The application is not required to accept writes while the local API or database
 
 Browser-only offline synchronization is outside the MVP.
 
+Categories, Tags, Problems, their relationships, links, raw Notes, review
+state, and server metadata must survive ordinary frontend, API, and PostgreSQL
+restarts while the named PostgreSQL volume is retained. Reapplying committed
+migrations must preserve existing application data. Destructive volume removal
+is not a normal workflow.
+
+Search, filters, sorting, progressive rendered-row limit, row expansion, open
+panels, inline drafts, and pending or error state are frontend session state;
+they are not required to persist across restart.
+
 ## 22. Performance
 
 The application must remain responsive with at least 1,000 problem rows.

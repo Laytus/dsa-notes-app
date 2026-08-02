@@ -174,6 +174,9 @@ deleting development data:
 docker compose stop postgres
 ```
 
+Do not use `docker compose down -v` for normal development or verification: it
+removes named volumes and therefore persisted PostgreSQL data.
+
 ## Start the applications
 
 Start the API:
@@ -254,6 +257,32 @@ remains insufficient. Manual verification confirmed the 1,000-Problem dataset,
 substantially better than rendering every row at once, although DOM rendering
 becomes noticeably less fluid after roughly 300 visible rows; that tradeoff is
 accepted for the MVP.
+
+## Persistence and restart verification
+
+PostgreSQL is the persisted source of truth. Categories, Tags, Problems, their
+relationships, links, raw Notes, review-derived dates, and timestamps survive
+normal API, frontend, and PostgreSQL restarts when the named Compose volume is
+retained. UI-only state is intentionally transient: search, filters, sorting,
+the visible render limit, expanded rows, open panels, inline drafts, and
+pending/error messages are recreated on reload.
+
+Run the automated isolated-database verification after loading `.env` and
+starting PostgreSQL:
+
+```bash
+pnpm --filter @dsa-notes/api verify:persistence
+```
+
+It requires `DATABASE_TEST_URL`, creates a uniquely named database derived
+from that test-only base, migrates and seeds it through the API, reconnects
+with a fresh Fastify/database client, reapplies committed migrations, verifies
+the hydrated state, and removes only the generated database. The utility
+refuses a base database name that does not contain `test`.
+
+For the manual Angular/API/container restart sequence and the separate
+prepare/verify/cleanup commands, see
+[`docs/verification/persistence-restart.md`](docs/verification/persistence-restart.md).
 
 ## Category and tag API
 

@@ -1,5 +1,5 @@
 import Fastify, { type FastifyInstance } from 'fastify';
-import { getDatabase, type Database } from './db/index.js';
+import { closeDatabase, getDatabase, type Database } from './db/index.js';
 import { registerErrorHandler } from './http/errors.js';
 import type { ServerDateSource } from './http/server-date.js';
 import { registerCategoryRoutes } from './routes/categories.js';
@@ -27,6 +27,10 @@ export function buildApp(
     },
   });
   const resolveDatabase = (): Database => database ?? getDatabase();
+
+  if (database === undefined) {
+    app.addHook('onClose', async () => closeDatabase());
+  }
 
   app.get('/api/health', async () => ({ status: 'ok' }));
   registerProblemRoutes(app, resolveDatabase, currentDate);

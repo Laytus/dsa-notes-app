@@ -16,7 +16,12 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "perf:1000:prepare": "tsx performance/prepare-1000-problems.ts prepare",
-    "perf:1000:cleanup": "tsx performance/prepare-1000-problems.ts cleanup"
+    "perf:1000:cleanup": "tsx performance/prepare-1000-problems.ts cleanup",
+    "persistence:prepare": "tsx verification/persistence-restart.ts prepare",
+    "persistence:verify": "tsx verification/persistence-restart.ts verify",
+    "persistence:migrate-verify": "tsx verification/persistence-restart.ts migrate-verify",
+    "persistence:cleanup": "tsx verification/persistence-restart.ts cleanup",
+    "verify:persistence": "tsx verification/persistence-restart.ts run"
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",

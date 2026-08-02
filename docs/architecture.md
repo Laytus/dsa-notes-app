@@ -208,6 +208,12 @@ Docker Compose manages PostgreSQL only.
 
 The frontend and API may run directly on the host during development.
 
+The Compose PostgreSQL service uses a named volume. Normal `stop`/`start`
+cycles retain data; destructive volume removal is excluded from routine
+development and verification. API database connections are lazy and owned by
+the Fastify process when no database is injected; the default client closes on
+Fastify shutdown so a new process reconnects from its current `DATABASE_URL`.
+
 Containerizing every development process is unnecessary for the MVP.
 
 ## 3. Repository structure
@@ -625,6 +631,25 @@ the complete collection, while adding progressively rendered rows becomes
 noticeably less fluid after roughly 300 visible rows. The initial 100-row block
 is substantially more usable than rendering all rows simultaneously. This
 accepted MVP tradeoff does not imply that virtual scrolling will be added.
+
+## Persistence and restart verification
+
+Persistence verification uses an isolated database derived from
+`DATABASE_TEST_URL`, whose configured database name must contain `test`.
+The utility creates a unique database, applies committed migrations, writes a
+representative Category/Tag/Problem fixture through the API, compares hydrated
+API state after a fresh Fastify/database client reconnect, reapplies migrations,
+and drops only that generated database. It never targets `DATABASE_URL`, the
+development database, or the Compose volume.
+
+The fixture verifies names and decimal-string IDs, category/tag relationships,
+nullable difficulty, links, multiline raw Notes, server-derived Last reviewed,
+timestamps, and an independently persisted duplicate. PostgreSQL stop/start is
+verified separately with the same generated database and retained named volume.
+Angular restart remains a browser/manual checkpoint: Angular reloads canonical
+data from the API, while query/filter/sort state, visible limit, expansion,
+open panels, inline drafts, and pending/error state deliberately remain
+transient.
 
 The initial filtering implementation keeps the loaded Problems collection as
 canonical signal state and derives visible Problems with a computed signal.
