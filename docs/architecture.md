@@ -580,7 +580,8 @@ For up to approximately 1,000 records:
 3. A derived view applies search.
 4. The derived view applies OR-based tag filtering.
 5. The derived view applies the selected sorting mode.
-6. Angular renders the resulting rows.
+6. A final local slice renders the first 100 matching rows, then explicit user
+   requests append further 100-row blocks.
 
 Search normalization should use a pure utility function equivalent to:
 
@@ -606,6 +607,24 @@ decimal-string Problem ID comparator. Status and Times solved are not sortable
 under the current product specification.
 
 The application must not perform a backend request per search input change.
+
+The render limit is presentation-only signal state. Search, Category,
+Difficulty, Status, Tag, sorting, and Clear filters reset it to 100; canonical
+Problems and the complete filtered/sorted derivation remain untouched. Local
+mutations reconcile canonical state before the slice, so deletion naturally
+pulls the next matching row into a full rendered block. Expansion, pending
+state, row errors, and inline edits remain keyed by Problem ID. Backend
+pagination was rejected because the fully hydrated local collection remains
+necessary for search, filters, sorting, and local mutations. This is not
+virtual scrolling; that may be evaluated after the MVP only if measured browser
+rendering remains insufficient.
+
+The 1,000-row verification separates fast local computation from browser DOM
+work: search, filters, sorting, and immutable reconciliation remain fast across
+the complete collection, while adding progressively rendered rows becomes
+noticeably less fluid after roughly 300 visible rows. The initial 100-row block
+is substantially more usable than rendering all rows simultaneously. This
+accepted MVP tradeoff does not imply that virtual scrolling will be added.
 
 The initial filtering implementation keeps the loaded Problems collection as
 canonical signal state and derives visible Problems with a computed signal.
@@ -919,3 +938,6 @@ Expected implementation order:
 Dynamic columns require a separate architecture proposal and are not part of this sequence.
 
 ---
+
+
+At some responsive widths, horizontally scrolling columns may remain faintly visible beside the sticky Actions column. This is a known non-blocking visual issue.

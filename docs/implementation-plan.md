@@ -497,7 +497,7 @@ Category/tag deletion and automatic review behavior must be tested against Postg
 ### Task 30 — E2E, 1,000-row performance, and documentation
 
 - **Objective:** Validate the complete system and close documentation gaps.
-- **Scope:** Playwright CRUD/reload workflow, isolated test data, 1,000-row measurement, only justified optimization, final README/spec reconciliation.
+- **Scope:** Playwright CRUD/reload workflow, isolated test data, 1,000-row measurement, only justified optimization, final README/spec reconciliation. The current frontend verification uses deterministic data and local 100-row progressive rendering after the complete search/filter/sort derivation; it is not backend pagination or virtual scrolling. Manual browser verification found the initial block substantially improves usability, with accepted rendering degradation after roughly 300 visible rows; virtual scrolling remains a post-MVP evaluation only.
 - **Areas:** E2E config/tests, benchmark data/script, targeted performance changes, docs.
 - **Dependencies:** Tasks 2–29, excluding export if deferred.
 - **Acceptance:** E2E persistence passes; table is demonstrably usable at 1,000 rows; MVP criteria map to automated or documented manual checks; full validation passes.

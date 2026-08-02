@@ -226,6 +226,35 @@ The Angular development server proxies relative `/api` requests to
 `http://localhost:3000`. Start the API and frontend through the documented
 commands; no CORS middleware or production hostname is required.
 
+## 1,000-row verification
+
+The frontend has a deterministic, test-only fixture containing 1,000 hydrated
+Problems. It never writes to PostgreSQL or the development database. Run the
+diagnostic benchmark separately from normal unit tests:
+
+```bash
+pnpm --filter @dsa-notes/web test:performance
+```
+
+It records median local-operation timings after warm-up for search, combined
+filters, supported sorting modes, immutable Problem mutations, and Category and
+Tag reconciliation. See
+[`docs/performance/1000-row-verification.md`](docs/performance/1000-row-verification.md)
+for the measured environment, manual-browser checklist, and limitations.
+
+The table renders matching Problems progressively in local blocks of 100 after
+search, filters, and sorting. **Show 100 more** appends the next block without
+making an API request; changing search, a filter, sorting, or using **Clear
+filters** returns the rendered slice to its first block. This is local
+presentation behavior, not backend pagination: the full hydrated collection is
+still needed for local search, filtering, and sorting.
+Virtual scrolling may be evaluated after the MVP only if progressive rendering
+remains insufficient. Manual verification confirmed the 1,000-Problem dataset,
+100-row blocks, and all current workflows work correctly. Initial usability is
+substantially better than rendering every row at once, although DOM rendering
+becomes noticeably less fluid after roughly 300 visible rows; that tradeoff is
+accepted for the MVP.
+
 ## Category and tag API
 
 The reference-data endpoints are:

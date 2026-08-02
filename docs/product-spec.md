@@ -471,11 +471,24 @@ For the MVP:
 
 - problems are loaded into frontend memory;
 - search, filters, and sorting run locally;
+- after search, filters, and sorting, matching rows render progressively in
+  blocks of 100 through an explicit Show more control;
+- changing a search/filter/sort criterion, including Clear filters, resets the
+  rendered block to its first 100 rows;
+- this is not backend pagination: the complete loaded collection remains the
+  source for search, filters, sorting, and mutations;
 - Markdown is not fully rendered for every collapsed row;
 - API requests are not issued for every search keystroke;
 - API writes are issued only after confirmed edits.
 
-Row virtualization is not required unless measurements demonstrate a real problem.
+Manual browser verification confirms that the 1,000-Problem dataset and all
+current workflows work correctly with progressive rendering. Local computation
+remains fast, while DOM rendering becomes noticeably less fluid after roughly
+300 visible rows. The initial 100-row block is substantially more usable than
+rendering all rows at once, and the remaining degradation is an accepted MVP
+tradeoff. Row virtualization is not required for the MVP. It may be evaluated
+after the MVP only if progressive rendering is still insufficient in measured
+browser use.
 
 ## 23. Keyboard behavior
 

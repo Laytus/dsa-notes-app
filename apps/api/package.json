@@ -14,7 +14,9 @@
     "test:db": "vitest run --config vitest.db.config.ts",
     "build": "tsc -p tsconfig.build.json",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "perf:1000:prepare": "tsx performance/prepare-1000-problems.ts prepare",
+    "perf:1000:cleanup": "tsx performance/prepare-1000-problems.ts cleanup"
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",

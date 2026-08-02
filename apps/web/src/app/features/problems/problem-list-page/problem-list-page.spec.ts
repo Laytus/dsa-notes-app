@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { Observable, of, Subject } from 'rxjs';
 import type {
@@ -14,6 +14,11 @@ import { ProblemFormPanel } from '../problem-form-panel/problem-form-panel';
 import { ReferenceAdminPanel } from '../reference-admin-panel/reference-admin-panel';
 import { POSTGRES_INTEGER_MAX } from '../problem-review';
 import { ProblemTable } from '../problem-table/problem-table';
+import {
+  PERFORMANCE_CATEGORIES,
+  PERFORMANCE_PROBLEMS,
+  PERFORMANCE_TAGS,
+} from '../../../../testing/problem-performance.fixture';
 import { ProblemListPage } from './problem-list-page';
 
 const problem: Problem = {
@@ -161,6 +166,19 @@ describe('ProblemListPage', () => {
     categoriesSubject.complete();
     tagsSubject.next(tagResources);
     tagsSubject.complete();
+  }
+
+  function completePerformancePage(
+    fixture: ComponentFixture<ProblemListPage>,
+    count = 1_000,
+  ): void {
+    problemsSubject.next(PERFORMANCE_PROBLEMS.slice(0, count));
+    problemsSubject.complete();
+    categoriesSubject.next(PERFORMANCE_CATEGORIES);
+    categoriesSubject.complete();
+    tagsSubject.next(PERFORMANCE_TAGS);
+    tagsSubject.complete();
+    fixture.detectChanges();
   }
 
   function changeControl(
@@ -2181,5 +2199,110 @@ describe('ProblemListPage', () => {
     expect(fixture.componentInstance.activeSort()?.direction).toBe('descending');
     expect(fixture.componentInstance.visibleProblems().map(({ id }) => id)).toEqual(['2']);
     expect(getProblems).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders only the first 100 of 1,000 sorted Problems and loads the next block on demand', () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completePerformancePage(fixture);
+
+    expect(fixture.componentInstance.sortedProblems()).toHaveLength(1_000);
+    expect(fixture.componentInstance.visibleProblems()).toHaveLength(100);
+    expect(fixture.nativeElement.querySelectorAll('.problem-row')).toHaveLength(100);
+    expect(fixture.nativeElement.textContent).toContain('Showing 100 of 1000 problems');
+    expect((fixture.nativeElement.querySelector('.progressive-rendering button') as HTMLButtonElement).type).toBe('button');
+
+    (fixture.nativeElement.querySelector('.progressive-rendering button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.visibleProblems()).toHaveLength(200);
+    expect(fixture.nativeElement.querySelectorAll('.problem-row')).toHaveLength(200);
+    expect(getProblems).toHaveBeenCalledTimes(1);
+    expect(getCategories).toHaveBeenCalledTimes(1);
+    expect(getTags).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders a final partial block and removes Show more when all matches are visible', () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completePerformancePage(fixture, 250);
+
+    const showMore = (): void => {
+      (fixture.nativeElement.querySelector('.progressive-rendering button') as HTMLButtonElement).click();
+      fixture.detectChanges();
+    };
+    showMore();
+    showMore();
+
+    expect(fixture.componentInstance.visibleProblems()).toHaveLength(250);
+    expect(fixture.nativeElement.querySelectorAll('.problem-row')).toHaveLength(250);
+    expect(fixture.nativeElement.querySelector('.progressive-rendering button')).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Showing all 250 problems');
+  });
+
+  it('resets the render limit after search, filters, and sorting while deriving over all Problems', () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completePerformancePage(fixture);
+    fixture.componentInstance.showMoreProblems();
+    expect(fixture.componentInstance.visibleLimit()).toBe(200);
+
+    const searchInput = document.createElement('input');
+    searchInput.value = 'dinamica marker';
+    fixture.componentInstance.setSearchQuery({ target: searchInput } as unknown as Event);
+    expect(fixture.componentInstance.visibleLimit()).toBe(100);
+    expect(fixture.componentInstance.filteredProblems()).toHaveLength(35);
+
+    fixture.componentInstance.showMoreProblems();
+    fixture.componentInstance.setCategoryFilter({ target: { value: '4' } } as unknown as Event);
+    expect(fixture.componentInstance.visibleLimit()).toBe(100);
+
+    fixture.componentInstance.showMoreProblems();
+    fixture.componentInstance.setSort('name');
+    expect(fixture.componentInstance.visibleLimit()).toBe(100);
+    expect(fixture.componentInstance.sortedProblems()).toHaveLength(7);
+    fixture.componentInstance.showMoreProblems();
+    fixture.componentInstance.clearFilters();
+    expect(fixture.componentInstance.visibleLimit()).toBe(100);
+    expect(fixture.componentInstance.sortedProblems()).toHaveLength(1_000);
+    expect(getProblems).toHaveBeenCalledTimes(1);
+  });
+
+  it('pulls the next matching Problem into the rendered block after deletion', () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completePerformancePage(fixture, 101);
+    const target = fixture.componentInstance.visibleProblems()[0]!;
+    const nextProblem = fixture.componentInstance.sortedProblems()[100]!;
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    fixture.componentInstance.requestDelete(target);
+    deleteResponse.next();
+    deleteResponse.complete();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.visibleProblems()).toHaveLength(100);
+    expect(fixture.componentInstance.visibleProblems().some(({ id }) => id === target.id)).toBe(false);
+    expect(fixture.componentInstance.visibleProblems().some(({ id }) => id === nextProblem.id)).toBe(true);
+  });
+
+  it('preserves ID-based expansion, including a previously hidden row, and a dirty inline editor when rows are appended', () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completePerformancePage(fixture);
+    const target = fixture.componentInstance.visibleProblems()[0]!;
+    const initiallyHidden = fixture.componentInstance.sortedProblems()[150]!;
+    const table = fixture.debugElement.query(By.directive(ProblemTable)).componentInstance as ProblemTable;
+    table.toggle(target.id);
+    table.toggle(initiallyHidden.id);
+    fixture.componentInstance.requestInlineEdit({ problem: target, field: 'name' });
+    fixture.componentInstance.updateInlineDraft('Edited without saving');
+
+    fixture.componentInstance.showMoreProblems();
+    fixture.detectChanges();
+
+    expect(table.isExpanded(target.id)).toBe(true);
+    expect(table.isExpanded(initiallyHidden.id)).toBe(true);
+    expect(fixture.nativeElement.querySelector(`#problem-details-${initiallyHidden.id}`)).not.toBeNull();
+    expect(fixture.componentInstance.inlineEdit()).toMatchObject({
+      problemId: target.id,
+      draft: 'Edited without saving',
+    });
+    expect(fixture.componentInstance.visibleProblems()[0]?.id).toBe('9007199254740993');
   });
 });

@@ -262,6 +262,21 @@ button:focus-visible {
   margin-bottom: 1rem;
 }
 
+.progressive-rendering {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.75rem;
+  color: #52606d;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.progressive-rendering p {
+  margin: 0;
+}
+
 @media (max-width: 600px) {
   .section-heading,
   .first-category-state {
@@ -278,6 +293,11 @@ button:focus-visible {
   .heading-actions,
   .warning,
   .filter-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .progressive-rendering {
     align-items: stretch;
     flex-direction: column;
   }

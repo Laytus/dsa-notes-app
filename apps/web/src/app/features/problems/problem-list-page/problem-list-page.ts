@@ -43,6 +43,8 @@ import {
   type ProblemSortField,
 } from '../problem-sorting';
 
+export const PROBLEM_RENDER_BLOCK_SIZE = 100;
+
 function compareNamedResources(
   left: { readonly id: string; readonly name: string },
   right: { readonly id: string; readonly name: string },
@@ -95,6 +97,8 @@ export class ProblemListPage {
   readonly selectedStatus = signal<ProblemStatus | null>(null);
   readonly selectedTagIds = signal<readonly string[]>([]);
   readonly activeSort = signal<ProblemSort | null>(null);
+  readonly visibleLimit = signal(PROBLEM_RENDER_BLOCK_SIZE);
+  readonly problemRenderBlockSize = PROBLEM_RENDER_BLOCK_SIZE;
   readonly activePanel = signal<ActivePanel | null>(null);
   readonly referenceAdminOpen = signal(false);
   readonly successMessage = signal<string | null>(null);
@@ -125,8 +129,14 @@ export class ProblemListPage {
   readonly filteredProblems = computed(() =>
     filterProblems(this.problems(), this.filters()),
   );
-  readonly visibleProblems = computed(() =>
+  readonly sortedProblems = computed(() =>
     sortProblems(this.filteredProblems(), this.activeSort()),
+  );
+  readonly visibleProblems = computed(() =>
+    this.sortedProblems().slice(0, this.visibleLimit()),
+  );
+  readonly hasMoreProblems = computed(
+    () => this.visibleProblems().length < this.sortedProblems().length,
   );
   readonly filtersActive = computed(() => {
     const filters = this.filters();
@@ -269,10 +279,12 @@ export class ProblemListPage {
 
   setSearchQuery(event: Event): void {
     this.searchQuery.set(this.inputValue(event));
+    this.resetVisibleLimit();
   }
 
   setCategoryFilter(event: Event): void {
     this.selectedCategoryId.set(this.optionalSelectValue(event));
+    this.resetVisibleLimit();
   }
 
   setDifficultyFilter(event: Event): void {
@@ -282,6 +294,7 @@ export class ProblemListPage {
         ? null
         : (value as Exclude<DifficultyFilter, null>),
     );
+    this.resetVisibleLimit();
   }
 
   setStatusFilter(event: Event): void {
@@ -289,6 +302,7 @@ export class ProblemListPage {
     this.selectedStatus.set(
       value === '' ? null : (value as ProblemStatus),
     );
+    this.resetVisibleLimit();
   }
 
   setTagFilter(tagId: string, event: Event): void {
@@ -299,6 +313,7 @@ export class ProblemListPage {
       }
       return current.filter((id) => id !== tagId);
     });
+    this.resetVisibleLimit();
   }
 
   clearFilters(): void {
@@ -307,6 +322,7 @@ export class ProblemListPage {
     this.selectedDifficulty.set(null);
     this.selectedStatus.set(null);
     this.selectedTagIds.set([]);
+    this.resetVisibleLimit();
   }
 
   setSort(field: ProblemSortField): void {
@@ -319,6 +335,16 @@ export class ProblemListPage {
               current.direction === 'ascending' ? 'descending' : 'ascending',
           }
         : { field, direction: 'ascending' },
+    );
+    this.resetVisibleLimit();
+  }
+
+  showMoreProblems(): void {
+    this.visibleLimit.update((current) =>
+      Math.min(
+        current + PROBLEM_RENDER_BLOCK_SIZE,
+        this.sortedProblems().length,
+      ),
     );
   }
 
@@ -375,6 +401,7 @@ export class ProblemListPage {
     );
     if (this.selectedCategoryId() === categoryId) {
       this.selectedCategoryId.set(null);
+      this.resetVisibleLimit();
     }
     this.formPanel()?.removeCategorySelection(categoryId);
     this.successMessage.set(`${deleted?.name ?? 'Category'} was deleted.`);
@@ -419,6 +446,7 @@ export class ProblemListPage {
     this.selectedTagIds.update((current) =>
       current.filter((id) => id !== tagId),
     );
+    this.resetVisibleLimit();
     this.formPanel()?.removeTagSelection(tagId);
     this.successMessage.set(`${deleted?.name ?? 'Tag'} was deleted.`);
   }
@@ -697,6 +725,7 @@ export class ProblemListPage {
       !categories.some(({ id }) => id === categoryId)
     ) {
       this.selectedCategoryId.set(null);
+      this.resetVisibleLimit();
     }
 
     if (this.tagsAvailable()) {
@@ -713,6 +742,10 @@ export class ProblemListPage {
       next.delete(id);
       return next;
     });
+  }
+
+  private resetVisibleLimit(): void {
+    this.visibleLimit.set(PROBLEM_RENDER_BLOCK_SIZE);
   }
 
   private clearDuplicating(id: string): void {

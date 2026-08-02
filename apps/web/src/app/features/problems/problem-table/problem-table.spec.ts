@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import type { Problem } from '../../../core/api/api.models';
+import { PERFORMANCE_PROBLEMS } from '../../../../testing/problem-performance.fixture';
 import { ProblemTable } from './problem-table';
 
 const completeProblem: Problem = {
@@ -82,6 +83,18 @@ describe('ProblemTable', () => {
     expect(fixture.nativeElement.textContent).toContain('Arrays');
     expect(fixture.nativeElement.textContent).toContain('Needs review');
     expect(fixture.nativeElement.textContent).toContain('2026-07-25');
+  });
+
+  it('renders a supplied 100-row progressive block with stable decimal-string tracking IDs', () => {
+    const renderedBlock = PERFORMANCE_PROBLEMS.slice(0, 100);
+    const fixture = createFixture(renderedBlock);
+    const rows = fixture.nativeElement.querySelectorAll(
+      '.problem-row',
+    ) as NodeListOf<HTMLTableRowElement>;
+
+    expect(rows).toHaveLength(100);
+    expect(rows[0]?.dataset['problemId']).toBe('9007199254740993');
+    expect(rows[99]?.dataset['problemId']).toBe(renderedBlock[99]?.id);
   });
 
   it('exposes only product-supported columns as accessible sort buttons', () => {

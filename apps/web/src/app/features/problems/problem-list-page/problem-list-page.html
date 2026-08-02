@@ -240,6 +240,21 @@
           (inlineCancelRequested)="cancelInlineEdit()"
           (sortRequested)="setSort($event)"
         />
+        @if (filteredProblems().length > 0) {
+          <div class="progressive-rendering" role="status" aria-live="polite">
+            @if (hasMoreProblems()) {
+              <p>
+                Showing {{ visibleProblems().length }} of
+                {{ sortedProblems().length }} problems
+              </p>
+              <button type="button" (click)="showMoreProblems()">
+                Show {{ problemRenderBlockSize }} more
+              </button>
+            } @else {
+              <p>Showing all {{ sortedProblems().length }} problems</p>
+            }
+          </div>
+        }
       }
   }
 </section>
