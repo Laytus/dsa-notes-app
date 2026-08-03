@@ -1,10 +1,27 @@
 # DSA Notes Implementation Plan
 
-## 1. Repository assessment
+## 1. MVP status and historical repository assessment
 
-### Current state
+### Current MVP status
 
-The repository is an initial, nonfunctional skeleton:
+The functional MVP is implemented and committed through persistence/restart
+verification. It includes Category and Tag administration; Problems CRUD,
+duplication, and review; side-panel and inline editing; local search, filters,
+and supported sorting; responsive sticky table layout; progressive rendering;
+1,000-row verification; and persistence/restart verification.
+
+Focused validation has passed throughout development. One final clean
+repository validation run and final audit confirmation remain before release or
+a tag is created. The current MVP intentionally defers safe Markdown rendering
+and preview, Excel export, import, optional Playwright/E2E coverage, responsive
+Actions-seam polish, and additional UI polish. Virtual scrolling is an
+evaluation only after MVP if progressive rendering remains insufficient.
+
+### Historical pre-implementation state
+
+The following was the initial, nonfunctional-skeleton assessment before the
+implementation phases. It is retained as historical planning context and does
+not describe the current repository:
 
 - `apps/api/`, `apps/web/`, and `packages/shared/` exist but are empty.
 - The root `package.json` contains metadata but no scripts or workspace tooling.
@@ -471,42 +488,62 @@ Category/tag deletion and automatic review behavior must be tested against Postg
 - **Risks/decisions:** Approve collator locale and deterministic tie-break.
 - **Commit boundary:** `feat(web): add search filtering and sorting`.
 
-### Task 28 — Markdown editing and safe preview
+### Task 28 — Markdown editing and safe preview (deferred post-MVP)
 
-- **Objective:** Render Notes safely without slowing collapsed rows.
-- **Scope:** Select parser/sanitizer, Edit/Preview panel, approved expanded preview, plain collapsed excerpt.
+- **Objective:** Evaluate safe rendered Markdown preview after the MVP.
+- **Scope:** The MVP already stores and edits raw multiline Markdown source and
+  displays escaped plain text. A future phase may select a parser/sanitizer,
+  add Edit/Preview UI, and retain a plain collapsed excerpt.
 - **Areas:** Dependency records, Markdown service/component/tests, panel/table integration, docs.
 - **Dependencies:** Tasks 24 and 27.
-- **Acceptance:** Required Markdown renders; hostile content cannot execute; collapsed rows do not fully render Markdown.
+- **Acceptance:** Deferred; no Markdown renderer or sanitizer is part of the
+  MVP release.
 - **Validation/commands:** Security fixtures, component tests, bundle/performance spot check, web checks.
 - **Risks/decisions:** Maintenance, license, bundle size, and raw HTML policy.
 - **Commit boundary:** `feat(web): add sanitized Markdown preview`.
 
-### Task 29 — Excel export decision and optional implementation
+### Task 29 — Excel export decision and optional implementation (deferred post-MVP)
 
-- **Objective:** Decide whether export remains MVP and implement only if justified.
+- **Objective:** Evaluate export after the MVP; import is not part of the MVP.
 - **Scope:** Decision record; if retained, export all canonical rows with hyperlinks, dates, tags, and multiline Notes.
 - **Areas:** Export service/tests, toolbar, dependency docs.
 - **Dependencies:** Stable API plus Task 27; preferably Task 28.
-- **Acceptance:** Export ignores filters and produces a valid, readable workbook.
+- **Acceptance:** Deferred; export and import do not block the MVP release.
 - **Validation:** Reopen the workbook programmatically and assert cells/hyperlinks; build web.
 - **Commands:** Web test/typecheck/lint/build.
 - **Risks/decisions:** Library size/license and browser memory; defer post-MVP if disproportionate.
 - **Commit boundary:** `feat(web): add Excel export` or `docs: defer Excel export`.
 
-### Task 30 — E2E, 1,000-row performance, and documentation
+### Task 30 — Final validation, 1,000-row performance, and documentation
 
 - **Objective:** Validate the complete system and close documentation gaps.
-- **Scope:** Playwright CRUD/reload workflow, isolated test data, 1,000-row measurement, only justified optimization, final README/spec reconciliation. The current frontend verification uses deterministic data and local 100-row progressive rendering after the complete search/filter/sort derivation; it is not backend pagination or virtual scrolling. Manual browser verification found the initial block substantially improves usability, with accepted rendering degradation after roughly 300 visible rows; virtual scrolling remains a post-MVP evaluation only. The completed persistence utility verifies an isolated PostgreSQL fixture across fresh Fastify/database-client reconnect and migration reapplication. The documented manual Angular/API/PostgreSQL full restart checkpoint also completed with retained data and named volume.
-- **Areas:** E2E config/tests, benchmark data/script, targeted performance changes, docs.
-- **Dependencies:** Tasks 2–29, excluding export if deferred.
-- **Acceptance:** E2E persistence passes; table is demonstrably usable at 1,000 rows; MVP criteria map to automated or documented manual checks; full validation passes.
-- **Validation:** Full root checks, E2E, production builds, Compose startup, and recorded performance evidence.
-- **Commands:** `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, E2E command, `docker compose config`.
+- **Scope:** Final clean validation, isolated test data, 1,000-row measurement,
+  only justified optimization, and final README/spec reconciliation. The current
+  frontend verification uses deterministic data and local 100-row progressive
+  rendering after the complete search/filter/sort derivation; it is not backend
+  pagination or virtual scrolling. Manual browser verification found the
+  initial block substantially improves usability, with accepted rendering
+  degradation after roughly 300 visible rows; virtual scrolling remains a
+  post-MVP evaluation only. The completed persistence utility verifies an
+  isolated PostgreSQL fixture across fresh Fastify/database-client reconnect
+  and migration reapplication. The documented manual Angular/API/PostgreSQL
+  full restart checkpoint also completed with retained data and named volume.
+- **Areas:** Validation commands, benchmark data/script, targeted performance
+  changes, docs. Playwright/E2E is optional post-MVP coverage.
+- **Dependencies:** Completed Tasks 2–27; Tasks 28–29 are explicitly deferred.
+- **Acceptance:** The table is demonstrably usable at 1,000 rows; MVP criteria
+  map to automated or documented manual checks; final clean validation passes.
+- **Validation:** Full root checks, production builds, Compose startup, isolated
+  PostgreSQL checks, persistence verification, and recorded performance evidence.
+- **Commands:** `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`,
+  `pnpm validate`, `pnpm test:db`, `verify:persistence`, and `docker compose config`.
 - **Risks/decisions:** Define responsiveness criteria before measuring; virtualization requires evidence; E2E must never target development data.
 - **Commit boundary:** Separate focused commits for E2E, any measured optimization, and final documentation.
 
-## 6. First recommended implementation task
+## 6. Historical first recommended implementation task
+
+The following prompt is retained as historical scaffolding context. It is not
+an instruction for the completed repository.
 
 Give Codex this prompt:
 

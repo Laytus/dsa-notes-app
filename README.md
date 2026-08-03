@@ -6,31 +6,29 @@ The application is intended primarily for tracking NeetCode and LeetCode problem
 
 ## Project status
 
-The project has a working monorepo foundation:
+The functional MVP is implemented but has not yet completed its final clean
+validation run, final audit confirmation, or release/tag step.
 
-- an Angular read-only Problems screen backed by the API;
-- a Fastify API with health, category, and tag endpoints;
-- complete Problems CRUD endpoints;
-- a committed PostgreSQL schema and migrations;
-- a local PostgreSQL Docker Compose service;
-- workspace-wide validation commands.
+Implemented MVP capabilities include:
 
-Inline editing has not been implemented yet.
+- Category and Tag administration;
+- Problems CRUD, duplication, and review;
+- side-panel editing and inline editing of Name, Category, Difficulty, Status,
+  and Times solved;
+- local search, filters, and supported sorting;
+- responsive sticky table layout, expansion, and progressive 100-row rendering;
+- deterministic 1,000-Problem verification; and
+- PostgreSQL persistence and restart verification.
 
-## Main features planned for the MVP
+`Last reviewed` is server-derived, read-only hydrated state. Tags, Solution,
+Source, and Notes remain editable through the side panel. Inline edits use
+explicit **Save** and **Cancel** controls, and the hydrated `PATCH` response is
+authoritative.
 
-- Create, edit, duplicate, and delete problem records.
-- Display problems in a desktop-oriented data table.
-- Expand and collapse individual table rows.
-- Edit simple fields directly inside the table.
-- Edit links, tags, and notes through a side panel.
-- Manage categories and tags.
-- Search across problem names, categories, tags, and notes.
-- Filter problems using one or more tags.
-- Sort problems by name, category, difficulty, and last-reviewed date.
-- Store application data in PostgreSQL.
-- Run entirely on the local machine without cloud services.
-- Export all problem records to Excel, if this remains within the MVP scope.
+Post-MVP candidates are safe Markdown rendering and preview, Excel export,
+import, optional Playwright/E2E coverage, responsive Actions-seam polish, and
+other UI polish. Virtual scrolling may be evaluated only if progressive
+rendering proves insufficient in measured browser use.
 
 ## Technology stack
 
@@ -62,7 +60,7 @@ Inline editing has not been implemented yet.
 - Vitest
 - Angular component and service tests
 - API integration tests
-- Playwright for end-to-end tests in a later phase
+- Playwright for optional post-MVP end-to-end coverage
 
 ## Repository structure
 
@@ -257,6 +255,10 @@ remains insufficient. Manual verification confirmed the 1,000-Problem dataset,
 substantially better than rendering every row at once, although DOM rendering
 becomes noticeably less fluid after roughly 300 visible rows; that tradeoff is
 accepted for the MVP.
+
+At some responsive widths, a faint seam may remain beside the sticky Actions
+column. It is a known non-blocking visual limitation and does not materially
+prevent current table use.
 
 ## Persistence and restart verification
 

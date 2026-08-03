@@ -192,6 +192,10 @@ A visual rich-text toolbar is outside the MVP.
 
 If Markdown rendering cannot be introduced cleanly during the MVP, raw multiline text remains acceptable temporarily. The database representation must still allow Markdown to be added later without migration problems.
 
+For the completed MVP, Notes are stored and edited as raw multiline Markdown
+source and displayed as escaped plain text. Safe rendered Markdown preview is
+deferred post-MVP: no Markdown renderer or sanitizer is included currently.
+
 ## 10. Automatic review behavior
 
 `Times solved` is a non-negative integer.
@@ -218,11 +222,11 @@ an explicit server-owned design before it is added.
 
 The minimum value of `Times solved` is `0`.
 
-## 11. Table column order
+## 11. Table column order and responsive stickiness
 
 The visible table columns are:
 
-| Order | Column | Sticky |
+| Order | Column | Wide sticky |
 |---:|---|:---:|
 | 1 | Expand control | Yes |
 | 2 | Name | Yes |
@@ -235,10 +239,24 @@ The visible table columns are:
 | 9 | Solution | No |
 | 10 | Source | No |
 | 11 | Notes | No |
+| 12 | Actions | Right |
 
-Sticky offsets must be calculated so that sticky columns do not overlap.
+Sticky offsets must be calculated so that sticky columns do not materially
+overlap or hide data. The frozen region intentionally reduces at narrower
+viewports to preserve usable center-table space:
 
-The fixed group must remain usable while scrolling horizontally.
+- Wide desktop, above `1540px`: Expand, Name, Category, Tags, Difficulty, and
+  Status are sticky on the left; Actions is sticky on the right.
+- Medium, `1051px` through `1540px`: Expand, Name, and Category are sticky on
+  the left; Actions is sticky on the right.
+- Narrow, `761px` through `1050px`: Expand and Name are sticky on the left;
+  Actions remains sticky on the right.
+- Very narrow, `760px` and below: Expand and Name remain sticky; Actions
+  returns to normal horizontal-table flow.
+
+The fixed group must remain usable while scrolling horizontally. A faint
+responsive Actions-column seam may remain at some widths; it is an accepted
+non-blocking visual limitation and should be revisited as post-MVP polish.
 
 Column resizing and column reordering are outside the MVP.
 
@@ -527,7 +545,8 @@ The workbook should contain:
 - readable date values;
 - multiline Notes content.
 
-If Excel export materially delays the stable CRUD and table functionality, it may be implemented immediately after the MVP.
+Excel export is deferred post-MVP. Import is not part of the current MVP.
+Neither feature blocks the current release.
 
 ## 25. Explicitly out of scope
 
@@ -553,6 +572,7 @@ The MVP does not include:
 - tag-filter AND mode;
 - audit history;
 - rich-text WYSIWYG editing.
+- import.
 
 ## 26. MVP acceptance criteria
 
@@ -571,7 +591,9 @@ The MVP is complete when:
 11. Tag filtering uses OR semantics.
 12. Search and tag filtering work together.
 13. Every defined sorting mode works.
-14. Sticky columns and horizontal scrolling do not overlap or hide data.
+14. Sticky columns and horizontal scrolling remain usable without material
+    overlap or hidden data; the documented faint responsive Actions seam is
+    accepted as non-blocking visual polish.
 15. The table remains usable with at least 1,000 rows.
 16. Destructive operations require confirmation.
 17. Important search, filter, sorting, automatic-review, and API behavior is covered by tests.

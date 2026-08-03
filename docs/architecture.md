@@ -646,10 +646,13 @@ The fixture verifies names and decimal-string IDs, category/tag relationships,
 nullable difficulty, links, multiline raw Notes, server-derived Last reviewed,
 timestamps, and an independently persisted duplicate. PostgreSQL stop/start is
 verified separately with the same generated database and retained named volume.
-Angular restart remains a browser/manual checkpoint: Angular reloads canonical
-data from the API, while query/filter/sort state, visible limit, expansion,
-open panels, inline drafts, and pending/error state deliberately remain
-transient.
+The documented manual restart verification has passed: Angular and Fastify
+were each restarted, PostgreSQL was stopped and started with its named volume
+retained, the full application restarted, and committed migrations were
+reapplied without changing the fixture. This remains manual browser/process
+verification, not browser automation. Query/filter/sort state, visible limit,
+expansion, open panels, inline drafts, and pending/error state deliberately
+remain transient.
 
 The initial filtering implementation keeps the loaded Problems collection as
 canonical signal state and derives visible Problems with a computed signal.
@@ -768,6 +771,11 @@ content is a non-sticky full-width cell with a bounded, horizontally sticky
 inner container that stays within the visible scroll region and reserves space
 for the right Actions column.
 
+At some responsive widths, a faint Actions-column seam may expose moving
+content beside the frozen region. The cell remains usable and does not
+materially hide data, so this is accepted MVP visual polish rather than a
+functional requirement failure.
+
 A large commercial data-grid dependency must not be introduced automatically.
 
 Before adding a table library, Codex must explain:
@@ -781,9 +789,10 @@ Before adding a table library, Codex must explain:
 
 Notes remain raw Markdown in PostgreSQL.
 
-The frontend may render Markdown through a small established parser.
-
-Rendered content must be sanitized.
+The completed MVP edits raw multiline source and displays escaped plain text in
+the expanded row. It deliberately includes no Markdown parser or sanitizer.
+Safe rendered Markdown preview is deferred post-MVP; when implemented, it must
+use a small established parser and sanitize rendered content.
 
 Collapsed rows should not render the entire Markdown document.
 
