@@ -245,6 +245,18 @@ thead .sticky-actions { z-index: 10; background: #f0f4f8; }
   gap: 2rem;
 }
 
+.notes-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 0.6rem; cursor: text; }
+.notes-heading h3 { margin-bottom: 0; }
+.notes-empty { margin: 0; color: #627d98; }
+.notes-editor { box-sizing: border-box; display: block; width: 100%; min-height: 14rem; resize: vertical; border: 1px solid #486581; border-radius: 0.35rem; color: #243b53; font: inherit; line-height: 1.5; padding: 0.75rem; }
+.expanded-side { min-width: 0; }
+.notes-mode-controls, .notes-save-controls { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 1rem; }
+:is(.notes-edit-button, .notes-mode-controls button, .notes-save-button, .notes-cancel-button) { border: 1px solid #486581; border-radius: 0.3rem; background: #fff; color: #334e68; cursor: pointer; font: inherit; font-weight: 700; padding: 0.35rem 0.55rem; }
+.notes-save-button { border-color: #2680c2; color: #0b69a3; }
+.notes-mode-controls button.active { background: #e6f6ff; border-color: #2680c2; color: #035388; }
+:is(.notes-edit-button, .notes-mode-controls button, .notes-save-button, .notes-cancel-button):focus-visible { outline: 3px solid #62b0e8; outline-offset: 2px; }
+.notes-error { color: #a61b1b; font-size: 0.8rem; margin: 0.7rem 0 0; }
+
 .details-grid h3 {
   margin: 0 0 0.6rem;
   color: #102a43;
@@ -307,4 +319,9 @@ dd {
   .details-grid {
     grid-template-columns: 1fr;
   }
+
+  .expanded-side { display: flex; flex-direction: column; }
+  .expanded-metadata { order: 3; }
+  .notes-mode-controls { order: 1; }
+  .notes-save-controls { order: 2; }
 }

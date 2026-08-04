@@ -230,6 +230,9 @@
           [inlineSaving]="inlineSaving()"
           [inlineError]="inlineError()"
           [inlinePendingProblemId]="inlineSaving() ? inlineEdit()?.problemId ?? null : null"
+          [notesEditor]="notesEditor()"
+          [notesSaving]="notesSaving()"
+          [notesError]="notesError()"
           (editRequested)="openEditPanel($event)"
           (duplicateRequested)="requestDuplicate($event)"
           (deleteRequested)="requestDelete($event)"
@@ -238,6 +241,12 @@
           (inlineDraftChanged)="updateInlineDraft($event)"
           (inlineSaveRequested)="saveInlineEdit()"
           (inlineCancelRequested)="cancelInlineEdit()"
+          (notesEditRequested)="requestNotesEdit($event)"
+          (notesDraftChanged)="updateNotesDraft($event)"
+          (notesModeRequested)="setNotesMode($event)"
+          (notesSaveRequested)="saveNotes()"
+          (notesCancelRequested)="cancelNotesEdit()"
+          (expansionRequested)="requestExpansion($event)"
           (sortRequested)="setSort($event)"
         />
         @if (filteredProblems().length > 0) {

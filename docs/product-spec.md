@@ -192,9 +192,15 @@ A visual rich-text toolbar is outside the MVP.
 
 If Markdown rendering cannot be introduced cleanly during the MVP, raw multiline text remains acceptable temporarily. The database representation must still allow Markdown to be added later without migration problems.
 
-For the completed MVP, Notes are stored and edited as raw multiline Markdown
-source and displayed as escaped plain text. Safe rendered Markdown preview is
-deferred post-MVP: no Markdown renderer or sanitizer is included currently.
+Notes remain stored as raw multiline Markdown source. The post-MVP Notes phase
+renders saved source through a configured parser with raw HTML disabled and
+Angular’s ordinary HTML sanitization. Expanded rows support a raw-source
+textarea with manual Edit/Preview and explicit Save/Cancel. The collapsed table
+continues to use a plain raw-text preview rather than rendering every document.
+Cmd/Ctrl+Enter explicitly saves Notes, while Cmd/Ctrl+Shift+Enter toggles
+Edit/Preview without saving. Add/Edit remains the accessible primary action;
+double-clicking only non-interactive expanded Notes-header space is an optional
+pointer shortcut and never applies to rendered Notes content.
 
 ## 10. Automatic review behavior
 

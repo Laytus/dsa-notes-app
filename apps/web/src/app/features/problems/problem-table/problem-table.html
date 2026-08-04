@@ -43,7 +43,7 @@
                 (isExpanded(problem.id) ? 'Collapse details for ' : 'Expand details for ') +
                 problem.name
               "
-              (click)="toggle(problem.id)"
+              (click)="requestExpansion(problem.id)"
             >
               <span aria-hidden="true">{{ isExpanded(problem.id) ? '−' : '+' }}</span>
             </button>
@@ -295,9 +295,26 @@
               <div class="expanded-content">
               <div class="details-grid">
                 <section class="expanded-notes">
-                  <h3>Notes</h3>
-                  <p class="notes">{{ problem.notes || 'No notes have been added.' }}</p>
+                  <div class="notes-heading" data-notes-header [attr.data-problem-id]="problem.id" title="Double-click to edit notes">
+                    <h3>Notes</h3>
+                    @if (notesEditor()?.problemId !== problem.id) {
+                      <button #notesButton type="button" class="notes-edit-button" [attr.data-problem-id]="problem.id" [attr.aria-label]="(problem.notes ? 'Edit notes for ' : 'Add notes for ') + problem.name" (click)="notesEditRequested.emit(problem)">{{ problem.notes ? 'Edit notes' : 'Add notes' }}</button>
+                    }
+                  </div>
+                  @if (notesEditor(); as editor) {
+                    @if (editor.problemId === problem.id) {
+                      @if (editor.mode === 'edit') {
+                        <label class="visually-hidden" [for]="'notes-editor-' + problem.id">Notes for {{ problem.name }}</label>
+                        <textarea #notesTextarea class="notes-editor" [id]="'notes-editor-' + problem.id" [value]="editor.draft" [disabled]="notesSaving()" (input)="notesDraftChanged.emit($any($event.target).value)" (keydown)="handleNotesEditorKeydown($event)" (keydown.escape)="notesCancelRequested.emit()"></textarea>
+                      } @else {
+                        @if (editor.draft) { <app-markdown-renderer [markdown]="editor.draft" /> } @else { <p class="notes-empty">No notes yet.</p> }
+                      }
+                    } @else {
+                      @if (problem.notes) { <app-markdown-renderer [markdown]="problem.notes" /> } @else { <p class="notes-empty">No notes yet.</p> }
+                    }
+                  } @else { @if (problem.notes) { <app-markdown-renderer [markdown]="problem.notes" /> } @else { <p class="notes-empty">No notes yet.</p> } }
                 </section>
+                <aside class="expanded-side">
                 <dl class="expanded-metadata">
                   <div>
                     <dt>Created</dt>
@@ -308,6 +325,18 @@
                     <dd>{{ formatTimestamp(problem.updatedAt) }}</dd>
                   </div>
                 </dl>
+                @if (notesEditor(); as editor) { @if (editor.problemId === problem.id) {
+                  <div class="notes-mode-controls" aria-label="Notes mode">
+                    <button #notesModeButton type="button" data-mode="edit" [class.active]="editor.mode === 'edit'" [disabled]="notesSaving()" (click)="notesModeRequested.emit('edit')" (keydown)="handleNotesEditorKeydown($event)">Edit</button>
+                    <button #notesModeButton type="button" data-mode="preview" [class.active]="editor.mode === 'preview'" [disabled]="notesSaving()" (click)="notesModeRequested.emit('preview')" (keydown)="handleNotesEditorKeydown($event)">Preview</button>
+                  </div>
+                  <div class="notes-save-controls">
+                    <button type="button" class="notes-save-button" [disabled]="notesSaving()" (click)="notesSaveRequested.emit()" (keydown)="handleNotesEditorKeydown($event)">{{ notesSaving() ? 'Saving…' : 'Save' }}</button>
+                    <button type="button" class="notes-cancel-button" [disabled]="notesSaving()" (click)="notesCancelRequested.emit()" (keydown)="handleNotesEditorKeydown($event)">Cancel</button>
+                  </div>
+                  @if (notesError(); as notesErrorMessage) { <p class="notes-error" role="alert">{{ notesErrorMessage }}</p> }
+                } }
+                </aside>
               </div>
               </div>
             </td>

@@ -2305,4 +2305,205 @@ describe('ProblemListPage', () => {
     });
     expect(fixture.componentInstance.visibleProblems()[0]?.id).toBe('9007199254740993');
   });
+
+  it('opens one expanded Notes editor with the exact raw source and previews without a request', () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completeLoadedPage([dynamicProblem]);
+    fixture.detectChanges();
+    const table = fixture.debugElement.query(By.directive(ProblemTable)).componentInstance as ProblemTable;
+    table.toggle(dynamicProblem.id);
+    fixture.detectChanges();
+
+    fixture.componentInstance.requestNotesEdit(dynamicProblem);
+    fixture.componentInstance.updateNotesDraft('  # Draft\n\n**kept exactly**  ');
+    fixture.componentInstance.setNotesMode('preview');
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.notesEditor()).toMatchObject({
+      problemId: dynamicProblem.id,
+      draft: '  # Draft\n\n**kept exactly**  ',
+      mode: 'preview',
+    });
+    expect(fixture.nativeElement.querySelector('.markdown-content h1')?.textContent).toBe('Draft');
+    expect(updateProblem).not.toHaveBeenCalled();
+  });
+
+  it('toggles the active Notes editor with Meta/Ctrl+Shift+Enter without saving and restores textarea focus', async () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completeLoadedPage([dynamicProblem]);
+    fixture.detectChanges();
+    const table = fixture.debugElement.query(By.directive(ProblemTable)).componentInstance as ProblemTable;
+    table.toggle(dynamicProblem.id);
+    fixture.componentInstance.requestNotesEdit(dynamicProblem);
+    fixture.componentInstance.updateNotesDraft('  exact\n\ndraft  ');
+    fixture.detectChanges();
+
+    const textarea = fixture.nativeElement.querySelector('.notes-editor') as HTMLTextAreaElement;
+    expect(textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', metaKey: true, shiftKey: true, cancelable: true }))).toBe(false);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.notesEditor()).toMatchObject({ mode: 'preview', draft: '  exact\n\ndraft  ' });
+    expect(updateProblem).not.toHaveBeenCalled();
+
+    const previewButton = fixture.nativeElement.querySelector('[data-mode="preview"]') as HTMLButtonElement;
+    expect(previewButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, shiftKey: true, cancelable: true }))).toBe(false);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(fixture.componentInstance.notesEditor()).toMatchObject({ mode: 'edit', draft: '  exact\n\ndraft  ' });
+    expect(document.activeElement).toBe(fixture.nativeElement.querySelector('.notes-editor'));
+    expect(updateProblem).not.toHaveBeenCalled();
+  });
+
+  it('opens Notes from a header double-click, keeps single clicks and Markdown content inert, and preserves expansion', async () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completeLoadedPage([dynamicProblem]);
+    fixture.detectChanges();
+    const table = fixture.debugElement.query(By.directive(ProblemTable)).componentInstance as ProblemTable;
+    table.toggle(dynamicProblem.id);
+    fixture.detectChanges();
+    const heading = fixture.nativeElement.querySelector('.notes-heading') as HTMLDivElement;
+    const markdown = fixture.nativeElement.querySelector('.markdown-content') as HTMLDivElement;
+
+    heading.click();
+    markdown.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    expect(fixture.componentInstance.notesEditor()).toBeNull();
+    heading.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(fixture.componentInstance.notesEditor()).toMatchObject({
+      problemId: dynamicProblem.id,
+      originalNotes: dynamicProblem.notes,
+      draft: dynamicProblem.notes,
+      mode: 'edit',
+    });
+    expect(table.isExpanded(dynamicProblem.id)).toBe(true);
+    expect(document.activeElement).toBe(fixture.nativeElement.querySelector('.notes-editor'));
+  });
+
+  it('uses existing confirmation rules when a header double-click switches a dirty Notes editor', () => {
+    const otherProblem = { ...problem, id: '2', name: 'Other problem' };
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completeLoadedPage([problem, otherProblem]);
+    fixture.detectChanges();
+    const table = fixture.debugElement.query(By.directive(ProblemTable)).componentInstance as ProblemTable;
+    table.toggle(problem.id);
+    table.toggle(otherProblem.id);
+    fixture.componentInstance.requestNotesEdit(problem);
+    fixture.componentInstance.updateNotesDraft('dirty');
+    fixture.detectChanges();
+    const headings = fixture.nativeElement.querySelectorAll('.notes-heading') as NodeListOf<HTMLDivElement>;
+    vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
+
+    headings[1]?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    expect(fixture.componentInstance.notesEditor()).toMatchObject({ problemId: problem.id, draft: 'dirty' });
+    headings[1]?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    expect(fixture.componentInstance.notesEditor()).toMatchObject({ problemId: otherProblem.id, draft: otherProblem.notes, mode: 'edit' });
+  });
+
+  it('saves only changed Notes, preserves expansion, and returns to read mode', () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completeLoadedPage([problem]);
+    fixture.detectChanges();
+    const response = new Subject<Problem>();
+    updateProblem.mockReturnValue(response);
+    const table = fixture.debugElement.query(By.directive(ProblemTable)).componentInstance as ProblemTable;
+    table.toggle(problem.id);
+
+    fixture.componentInstance.requestNotesEdit(problem);
+    fixture.componentInstance.updateNotesDraft('\nline one\n\nline two\n');
+    fixture.componentInstance.saveNotes();
+
+    expect(updateProblem).toHaveBeenCalledWith('1', { notes: '\nline one\n\nline two\n' });
+    expect(fixture.componentInstance.notesSaving()).toBe(true);
+    response.next({ ...problem, notes: '\nline one\n\nline two\n' });
+    response.complete();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.notesEditor()).toBeNull();
+    expect(table.isExpanded('1')).toBe(true);
+    expect(fixture.componentInstance.problems()[0]?.notes).toBe('\nline one\n\nline two\n');
+  });
+
+  it('routes a Notes textarea Meta+Enter through the field-only Save workflow', () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completeLoadedPage([problem]);
+    fixture.detectChanges();
+    const response = new Subject<Problem>();
+    updateProblem.mockReturnValue(response);
+    const table = fixture.debugElement.query(By.directive(ProblemTable)).componentInstance as ProblemTable;
+    table.toggle(problem.id);
+    fixture.componentInstance.requestNotesEdit(problem);
+    fixture.componentInstance.updateNotesDraft('shortcut draft');
+    fixture.detectChanges();
+
+    const textarea = fixture.nativeElement.querySelector('.notes-editor') as HTMLTextAreaElement;
+    const event = new KeyboardEvent('keydown', { key: 'Enter', metaKey: true, cancelable: true });
+    expect(textarea.dispatchEvent(event)).toBe(false);
+    expect(updateProblem).toHaveBeenCalledWith('1', { notes: 'shortcut draft' });
+    response.next({ ...problem, notes: 'shortcut draft' });
+    response.complete();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.notesEditor()).toBeNull();
+    expect(table.isExpanded(problem.id)).toBe(true);
+  });
+
+  it('closes an unchanged Notes editor without PATCH through Ctrl+Enter', () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completeLoadedPage([problem]);
+    fixture.detectChanges();
+    const table = fixture.debugElement.query(By.directive(ProblemTable)).componentInstance as ProblemTable;
+    table.toggle(problem.id);
+    fixture.componentInstance.requestNotesEdit(problem);
+    fixture.detectChanges();
+
+    const textarea = fixture.nativeElement.querySelector('.notes-editor') as HTMLTextAreaElement;
+    textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, cancelable: true }));
+    fixture.detectChanges();
+
+    expect(updateProblem).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.notesEditor()).toBeNull();
+  });
+
+  it('keeps a failed Notes draft open and confirms before a dirty cancel or collapse', () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completeLoadedPage([problem]);
+    fixture.detectChanges();
+    const response = new Subject<Problem>();
+    updateProblem.mockReturnValue(response);
+    const table = fixture.debugElement.query(By.directive(ProblemTable)).componentInstance as ProblemTable;
+    table.toggle(problem.id);
+    fixture.componentInstance.requestNotesEdit(problem);
+    fixture.componentInstance.updateNotesDraft('unsaved');
+    fixture.componentInstance.saveNotes();
+    response.error(new HttpErrorResponse({ status: 0 }));
+
+    expect(fixture.componentInstance.notesEditor()?.draft).toBe('unsaved');
+    expect(fixture.componentInstance.notesError()).toContain('Network unavailable');
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    fixture.componentInstance.cancelNotesEdit();
+    fixture.componentInstance.requestExpansion(problem.id);
+    expect(fixture.componentInstance.notesEditor()?.draft).toBe('unsaved');
+    expect(table.isExpanded(problem.id)).toBe(true);
+  });
+
+  it('preserves the Notes draft after a failed Ctrl+Enter Save', () => {
+    const fixture = TestBed.createComponent(ProblemListPage);
+    completeLoadedPage([problem]);
+    fixture.detectChanges();
+    const response = new Subject<Problem>();
+    updateProblem.mockReturnValue(response);
+    const table = fixture.debugElement.query(By.directive(ProblemTable)).componentInstance as ProblemTable;
+    table.toggle(problem.id);
+    fixture.componentInstance.requestNotesEdit(problem);
+    fixture.componentInstance.updateNotesDraft('retry this');
+    fixture.detectChanges();
+
+    const textarea = fixture.nativeElement.querySelector('.notes-editor') as HTMLTextAreaElement;
+    textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, cancelable: true }));
+    response.error(new HttpErrorResponse({ status: 0 }));
+
+    expect(fixture.componentInstance.notesEditor()).toMatchObject({ draft: 'retry this', mode: 'edit' });
+    expect(fixture.componentInstance.notesError()).toContain('Network unavailable');
+  });
 });

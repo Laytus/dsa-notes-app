@@ -54,6 +54,9 @@ describe('ProblemTable', () => {
       'editableIds',
       new Set(problems.map(({ id }) => id)),
     );
+    fixture.componentInstance.expansionRequested.subscribe((id) =>
+      fixture.componentInstance.toggle(id),
+    );
     fixture.detectChanges();
     return fixture;
   }
@@ -364,8 +367,131 @@ describe('ProblemTable', () => {
       2,
     );
     expect(fixture.nativeElement.textContent).toContain(
-      'No notes have been added.',
+      'No notes yet.',
     );
+  });
+
+  it('offers accessible expanded Notes editing and renders only the active draft preview', () => {
+    const fixture = createFixture([completeProblem, nullableProblem]);
+    fixture.componentInstance.toggle(completeProblem.id);
+    fixture.componentInstance.toggle(nullableProblem.id);
+    fixture.detectChanges();
+
+    const notesButtons = fixture.nativeElement.querySelectorAll('.notes-edit-button') as NodeListOf<HTMLButtonElement>;
+    expect(notesButtons[0]?.textContent?.trim()).toBe('Edit notes');
+    expect(notesButtons[0]?.getAttribute('aria-label')).toContain('Two Sum');
+    expect(notesButtons[1]?.textContent?.trim()).toBe('Add notes');
+    const requested = vi.fn();
+    fixture.componentInstance.notesEditRequested.subscribe(requested);
+    notesButtons[1]?.click();
+    expect(requested).toHaveBeenCalledWith(nullableProblem);
+
+    fixture.componentRef.setInput('notesEditor', {
+      problemId: completeProblem.id,
+      originalNotes: completeProblem.notes,
+      draft: '# Draft notes',
+      mode: 'preview' as const,
+    });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('.notes-editor')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.markdown-content h1')?.textContent).toBe('Draft notes');
+    expect(fixture.nativeElement.querySelector('.notes-save-button')?.getAttribute('type')).toBe('button');
+  });
+
+  it('uses Meta/Ctrl+Enter for Notes Save without intercepting ordinary multiline input', () => {
+    const fixture = createFixture([completeProblem]);
+    fixture.componentInstance.toggle(completeProblem.id);
+    fixture.componentRef.setInput('notesEditor', {
+      problemId: completeProblem.id,
+      originalNotes: completeProblem.notes,
+      draft: 'changed',
+      mode: 'edit' as const,
+    });
+    const requested = vi.fn();
+    fixture.componentInstance.notesSaveRequested.subscribe(requested);
+    fixture.detectChanges();
+    const textarea = fixture.nativeElement.querySelector('.notes-editor') as HTMLTextAreaElement;
+
+    const metaEnter = new KeyboardEvent('keydown', { key: 'Enter', metaKey: true, cancelable: true });
+    expect(textarea.dispatchEvent(metaEnter)).toBe(false);
+    const ctrlEnter = new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, cancelable: true });
+    expect(textarea.dispatchEvent(ctrlEnter)).toBe(false);
+    const plainEnter = new KeyboardEvent('keydown', { key: 'Enter', cancelable: true });
+    expect(textarea.dispatchEvent(plainEnter)).toBe(true);
+    const shiftEnter = new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, cancelable: true });
+    expect(textarea.dispatchEvent(shiftEnter)).toBe(true);
+    expect(requested).toHaveBeenCalledTimes(2);
+
+    fixture.componentRef.setInput('notesSaving', true);
+    fixture.detectChanges();
+    const pendingShortcut = new KeyboardEvent('keydown', { key: 'Enter', metaKey: true, cancelable: true });
+    fixture.componentInstance.handleNotesEditorKeydown(pendingShortcut);
+    expect(pendingShortcut.defaultPrevented).toBe(true);
+    expect(requested).toHaveBeenCalledTimes(2);
+  });
+
+  it('toggles Notes mode with Meta/Ctrl+Shift+Enter without saving or changing the draft', () => {
+    const fixture = createFixture([completeProblem]);
+    fixture.componentInstance.toggle(completeProblem.id);
+    fixture.componentRef.setInput('notesEditor', {
+      problemId: completeProblem.id,
+      originalNotes: completeProblem.notes,
+      draft: '  exact\n\ndraft  ',
+      mode: 'edit' as const,
+    });
+    const modes = vi.fn();
+    const saves = vi.fn();
+    fixture.componentInstance.notesModeRequested.subscribe(modes);
+    fixture.componentInstance.notesSaveRequested.subscribe(saves);
+    fixture.detectChanges();
+    const textarea = fixture.nativeElement.querySelector('.notes-editor') as HTMLTextAreaElement;
+
+    const metaToggle = new KeyboardEvent('keydown', { key: 'Enter', metaKey: true, shiftKey: true, cancelable: true });
+    expect(textarea.dispatchEvent(metaToggle)).toBe(false);
+    const ctrlToggle = new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, shiftKey: true, cancelable: true });
+    expect(textarea.dispatchEvent(ctrlToggle)).toBe(false);
+    expect(modes).toHaveBeenNthCalledWith(1, 'preview');
+    expect(modes).toHaveBeenNthCalledWith(2, 'preview');
+    expect(saves).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.notesEditor()?.draft).toBe('  exact\n\ndraft  ');
+
+    fixture.componentRef.setInput('notesEditor', {
+      problemId: completeProblem.id,
+      originalNotes: completeProblem.notes,
+      draft: '  exact\n\ndraft  ',
+      mode: 'preview' as const,
+    });
+    fixture.detectChanges();
+    const previewButton = fixture.nativeElement.querySelector('[data-mode="preview"]') as HTMLButtonElement;
+    const previewToggle = new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, shiftKey: true, cancelable: true });
+    expect(previewButton.dispatchEvent(previewToggle)).toBe(false);
+    expect(modes).toHaveBeenLastCalledWith('edit');
+
+    fixture.componentRef.setInput('notesSaving', true);
+    const pendingToggle = new KeyboardEvent('keydown', { key: 'Enter', metaKey: true, shiftKey: true, cancelable: true });
+    fixture.componentInstance.handleNotesEditorKeydown(pendingToggle);
+    expect(pendingToggle.defaultPrevented).toBe(true);
+    expect(modes).toHaveBeenCalledTimes(3);
+  });
+
+  it('opens Notes only from a read-mode non-interactive header double-click', () => {
+    const fixture = createFixture([completeProblem]);
+    fixture.componentInstance.toggle(completeProblem.id);
+    const requested = vi.fn();
+    fixture.componentInstance.notesEditRequested.subscribe(requested);
+    fixture.detectChanges();
+    const heading = fixture.nativeElement.querySelector('.notes-heading') as HTMLDivElement;
+    const button = fixture.nativeElement.querySelector('.notes-edit-button') as HTMLButtonElement;
+    const markdown = fixture.nativeElement.querySelector('.markdown-content') as HTMLDivElement;
+
+    heading.click();
+    heading.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    button.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    markdown.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+
+    expect(requested).toHaveBeenCalledTimes(1);
+    expect(requested).toHaveBeenCalledWith(completeProblem);
   });
 
   it('tracks rendered rows by stable problem ID', () => {
