@@ -10,10 +10,14 @@ import {
 import type { Problem } from '../../../core/api/api.models';
 import type { CategoryResource, Difficulty, ProblemStatus } from '../../../core/api/api.models';
 import type { InlineProblemEdit, InlineProblemField } from '../inline-problem-edit';
+import type { ExpandedNotesEditor, ExpandedNotesEditorMode } from '../expanded-notes-editor';
 import type { ProblemSort, ProblemSortField } from '../problem-sorting';
+import { MarkdownRendererComponent } from '../markdown-renderer/markdown-renderer';
 
 @Component({
   selector: 'app-problem-table',
+  imports: [MarkdownRendererComponent],
+  host: { '(dblclick)': 'handleNotesHeaderDoubleClick($event)' },
   templateUrl: './problem-table.html',
   styleUrl: './problem-table.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -39,6 +43,9 @@ export class ProblemTable {
   readonly inlineError = input<string | null>(null);
   readonly inlinePendingProblemId = input<string | null>(null);
   readonly activeSort = input<ProblemSort | null>(null);
+  readonly notesEditor = input<ExpandedNotesEditor | null>(null);
+  readonly notesSaving = input(false);
+  readonly notesError = input<string | null>(null);
   readonly editRequested = output<Problem>();
   readonly duplicateRequested = output<Problem>();
   readonly deleteRequested = output<Problem>();
@@ -48,6 +55,12 @@ export class ProblemTable {
   readonly inlineSaveRequested = output<void>();
   readonly inlineCancelRequested = output<void>();
   readonly sortRequested = output<ProblemSortField>();
+  readonly notesEditRequested = output<Problem>();
+  readonly notesDraftChanged = output<string>();
+  readonly notesModeRequested = output<ExpandedNotesEditorMode>();
+  readonly notesSaveRequested = output<void>();
+  readonly notesCancelRequested = output<void>();
+  readonly expansionRequested = output<string>();
   readonly expandedIds = signal<ReadonlySet<string>>(new Set());
   private readonly editButtons =
     viewChildren<ElementRef<HTMLButtonElement>>('editButton');
@@ -57,6 +70,9 @@ export class ProblemTable {
     viewChildren<ElementRef<HTMLButtonElement>>('inlineTrigger');
   private readonly inlineEditors =
     viewChildren<ElementRef<HTMLInputElement | HTMLSelectElement>>('inlineEditor');
+  private readonly notesTextareas = viewChildren<ElementRef<HTMLTextAreaElement>>('notesTextarea');
+  private readonly notesButtons = viewChildren<ElementRef<HTMLButtonElement>>('notesButton');
+  private readonly notesModeButtons = viewChildren<ElementRef<HTMLButtonElement>>('notesModeButton');
 
   isExpanded(id: string): boolean {
     return this.expandedIds().has(id);
@@ -67,6 +83,10 @@ export class ProblemTable {
     if (next.has(id)) next.delete(id);
     else next.add(id);
     this.expandedIds.set(next);
+  }
+
+  requestExpansion(id: string): void {
+    this.expansionRequested.emit(id);
   }
 
   removeExpanded(id: string): void {
@@ -98,6 +118,72 @@ export class ProblemTable {
 
   focusInlineEditor(): void {
     this.inlineEditors()[0]?.nativeElement.focus();
+  }
+
+  focusNotesTextarea(): void {
+    this.notesTextareas()[0]?.nativeElement.focus();
+  }
+
+  focusNotesButton(id: string): void {
+    this.notesButtons()
+      .find(({ nativeElement }) => nativeElement.dataset['problemId'] === id)
+      ?.nativeElement.focus();
+  }
+
+  focusNotesModeButton(mode: ExpandedNotesEditorMode): void {
+    this.notesModeButtons()
+      .find(({ nativeElement }) => nativeElement.dataset['mode'] === mode)
+      ?.nativeElement.focus();
+  }
+
+  handleNotesEditorKeydown(event: KeyboardEvent): void {
+    if (
+      event.key !== 'Enter' ||
+      (!event.metaKey && !event.ctrlKey)
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    if (this.notesSaving()) return;
+
+    if (event.shiftKey) {
+      const editor = this.notesEditor();
+      if (editor === null) return;
+      this.notesModeRequested.emit(
+        editor.mode === 'edit' ? 'preview' : 'edit',
+      );
+      return;
+    }
+
+    this.notesSaveRequested.emit();
+  }
+
+  handleNotesHeaderDoubleClick(event: MouseEvent): void {
+    const header = this.notesHeaderTarget(event.target);
+    const problemId = header?.dataset['problemId'];
+    const problem = this.problems().find(({ id }) => id === problemId);
+    if (
+      this.notesSaving() ||
+      problem === undefined ||
+      this.notesEditor()?.problemId === problem.id ||
+      this.isInteractiveTarget(event.target)
+    ) {
+      return;
+    }
+    this.notesEditRequested.emit(problem);
+  }
+
+  private isInteractiveTarget(target: EventTarget | null): boolean {
+    return target instanceof Element && target.closest(
+      'a, button, input, textarea, select, option, label, [role="button"], [contenteditable]',
+    ) !== null;
+  }
+
+  private notesHeaderTarget(target: EventTarget | null): HTMLElement | null {
+    return target instanceof Element
+      ? target.closest<HTMLElement>('[data-notes-header]')
+      : null;
   }
 
   isSorted(field: ProblemSortField): boolean {

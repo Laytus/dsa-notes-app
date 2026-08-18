@@ -787,12 +787,30 @@ Before adding a table library, Codex must explain:
 
 ## 14. Markdown architecture
 
-Notes remain raw Markdown in PostgreSQL.
+Notes remain raw Markdown in PostgreSQL. The focused `MarkdownRendererComponent`
+uses one `markdown-it` parser configuration with raw HTML disabled, images
+rendered inertly, and HTTP/HTTPS-only links. It returns an HTML string to an
+ordinary Angular `[innerHTML]` binding, retaining Angular’s built-in sanitizer;
+it never bypasses trust or manually assigns DOM HTML. Parser failures use a safe
+fixed fallback. The component serves saved expanded-row Notes and unsaved manual
+Preview drafts.
 
-The completed MVP edits raw multiline source and displays escaped plain text in
-the expanded row. It deliberately includes no Markdown parser or sanitizer.
-Safe rendered Markdown preview is deferred post-MVP; when implemented, it must
-use a small established parser and sanitize rendered content.
+The Problems page owns at most one expanded Notes editor keyed by exact Problem
+ID. It preserves raw draft whitespace, toggles explicitly between Edit and
+Preview, and sends `{ notes }` only on explicit changed Save. The hydrated PATCH
+response replaces canonical local state; Cancel, collapse, and panel switching
+confirm before discarding dirty Notes. Collapsed rows still avoid full Markdown
+rendering.
+
+Notes keyboard handling is scoped to focusable controls in the active expanded
+editor, not `window` or `document`: Cmd/Ctrl+Enter delegates to Save, and
+Cmd/Ctrl+Shift+Enter delegates to the same Edit/Preview state transition as the
+visible controls. Escape remains available when delivered to the component, but
+the Cancel button is the guaranteed mechanism because browser/fullscreen UI may
+intercept Escape. Browser-reserved shortcuts (including Cmd/Ctrl+P) are not
+overridden. A guarded header double-click emits the same Notes-open request as
+the native Add/Edit button; rendered Markdown is deliberately outside that
+pointer shortcut so text selection remains normal.
 
 Collapsed rows should not render the entire Markdown document.
 

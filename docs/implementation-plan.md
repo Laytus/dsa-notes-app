@@ -12,8 +12,8 @@ and supported sorting; responsive sticky table layout; progressive rendering;
 
 Focused validation has passed throughout development. One final clean
 repository validation run and final audit confirmation remain before release or
-a tag is created. The current MVP intentionally defers safe Markdown rendering
-and preview, Excel export, import, optional Playwright/E2E coverage, responsive
+a tag is created. The post-MVP Notes phase completed safe Markdown rendering
+and preview. The current MVP still defers Excel export, import, optional Playwright/E2E coverage, responsive
 Actions-seam polish, and additional UI polish. Virtual scrolling is an
 evaluation only after MVP if progressive rendering remains insufficient.
 
@@ -488,16 +488,20 @@ Category/tag deletion and automatic review behavior must be tested against Postg
 - **Risks/decisions:** Approve collator locale and deterministic tie-break.
 - **Commit boundary:** `feat(web): add search filtering and sorting`.
 
-### Task 28 — Markdown editing and safe preview (deferred post-MVP)
+### Task 28 — Markdown editing and safe preview (completed post-MVP)
 
-- **Objective:** Evaluate safe rendered Markdown preview after the MVP.
-- **Scope:** The MVP already stores and edits raw multiline Markdown source and
-  displays escaped plain text. A future phase may select a parser/sanitizer,
-  add Edit/Preview UI, and retain a plain collapsed excerpt.
+- **Objective:** Safely render saved Markdown and add direct expanded-row Notes
+  editing after the MVP.
+- **Scope:** `markdown-it` parses raw source with raw HTML disabled; Angular
+  retains normal `[innerHTML]` sanitization. The expanded row has one page-owned
+  raw-source editor, manual Edit/Preview, explicit Save/Cancel, and field-only
+  PATCH. Cmd/Ctrl+Enter saves and Cmd/Ctrl+Shift+Enter toggles modes locally;
+  a guarded non-interactive header double-click opens the same editor. Collapsed
+  rows retain a plain excerpt.
 - **Areas:** Dependency records, Markdown service/component/tests, panel/table integration, docs.
 - **Dependencies:** Tasks 24 and 27.
-- **Acceptance:** Deferred; no Markdown renderer or sanitizer is part of the
-  MVP release.
+- **Acceptance:** Completed post-MVP; raw HTML, images, and unsafe links remain
+  inert, and Notes drafts preserve exact source until an explicit Save.
 - **Validation/commands:** Security fixtures, component tests, bundle/performance spot check, web checks.
 - **Risks/decisions:** Maintenance, license, bundle size, and raw HTML policy.
 - **Commit boundary:** `feat(web): add sanitized Markdown preview`.
@@ -530,7 +534,7 @@ Category/tag deletion and automatic review behavior must be tested against Postg
   full restart checkpoint also completed with retained data and named volume.
 - **Areas:** Validation commands, benchmark data/script, targeted performance
   changes, docs. Playwright/E2E is optional post-MVP coverage.
-- **Dependencies:** Completed Tasks 2–27; Tasks 28–29 are explicitly deferred.
+- **Dependencies:** Completed Tasks 2–28; Task 29 remains explicitly deferred.
 - **Acceptance:** The table is demonstrably usable at 1,000 rows; MVP criteria
   map to automated or documented manual checks; final clean validation passes.
 - **Validation:** Full root checks, production builds, Compose startup, isolated

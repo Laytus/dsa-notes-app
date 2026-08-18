@@ -5,7 +5,9 @@ import {
   computed,
   DestroyRef,
   ElementRef,
+  afterNextRender,
   inject,
+  Injector,
   signal,
   viewChild,
 } from '@angular/core';
@@ -36,6 +38,11 @@ import {
 } from '../inline-problem-edit';
 import { ReferenceAdminPanel } from '../reference-admin-panel/reference-admin-panel';
 import { ProblemTable } from '../problem-table/problem-table';
+import {
+  notesEditorIsDirty,
+  type ExpandedNotesEditor,
+  type ExpandedNotesEditorMode,
+} from '../expanded-notes-editor';
 import {
   compareDefaultProblems,
   sortProblems,
@@ -74,6 +81,7 @@ export class ProblemListPage {
   private readonly categoriesApi = inject(CategoriesApiService);
   private readonly tagsApi = inject(TagsApiService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
   private readonly addProblemButton =
     viewChild<ElementRef<HTMLButtonElement>>('addProblemButton');
   private readonly manageReferencesButton =
@@ -111,6 +119,9 @@ export class ProblemListPage {
   readonly inlineEdit = signal<InlineProblemEdit | null>(null);
   readonly inlineSaving = signal(false);
   readonly inlineError = signal<string | null>(null);
+  readonly notesEditor = signal<ExpandedNotesEditor | null>(null);
+  readonly notesSaving = signal(false);
+  readonly notesError = signal<string | null>(null);
   readonly difficulties: readonly Difficulty[] = ['Easy', 'Medium', 'Hard'];
   readonly statuses: readonly ProblemStatus[] = [
     'To solve',
@@ -150,7 +161,11 @@ export class ProblemListPage {
   });
   readonly duplicateDisabledIds = computed<ReadonlySet<string>>(() => {
     const active = this.activePanel();
-    return active?.mode === 'edit' ? new Set([active.problem.id]) : new Set();
+    const disabled = new Set<string>();
+    if (active?.mode === 'edit') disabled.add(active.problem.id);
+    const notesEditor = this.notesEditor();
+    if (notesEditor) disabled.add(notesEditor.problemId);
+    return disabled;
   });
   readonly canCreate = computed(
     () =>
@@ -351,7 +366,7 @@ export class ProblemListPage {
   openCreatePanel(): void {
     if (!this.canCreate()) return;
     if (this.activePanel()?.mode === 'create') return;
-    if (!this.resolveInlineEdit()) return;
+    if (!this.resolveInlineEdit() || !this.resolveNotesEditor()) return;
     if (!this.canSwitchPanel()) return;
     this.successMessage.set(null);
     this.activePanel.set({ mode: 'create' });
@@ -457,7 +472,7 @@ export class ProblemListPage {
     if (this.reviewingIds().has(problem.id)) return;
     const active = this.activePanel();
     if (active?.mode === 'edit' && active.problem.id === problem.id) return;
-    if (!this.resolveInlineEdit()) return;
+    if (!this.resolveInlineEdit() || !this.resolveNotesEditor()) return;
     if (!this.canSwitchPanel()) return;
     this.successMessage.set(null);
     this.activePanel.set({ mode: 'edit', problem });
@@ -498,7 +513,10 @@ export class ProblemListPage {
       active?.mode === 'edit' &&
       active.problem.id === problem.id &&
       (this.formPanel()?.hasUnsavedChanges() ?? false);
-    const message = discardsDirtyEdit
+    const discardsDirtyNotes =
+      this.notesEditor()?.problemId === problem.id &&
+      notesEditorIsDirty(this.notesEditor()!);
+    const message = discardsDirtyEdit || discardsDirtyNotes
       ? `Delete “${problem.name}”? This action cannot be undone and unsaved edits will be discarded.`
       : `Delete “${problem.name}”? This action cannot be undone.`;
     if (!window.confirm(message)) return;
@@ -514,6 +532,7 @@ export class ProblemListPage {
           this.clearReviewing(problem.id);
           this.clearReviewError(problem.id);
           this.problemTable()?.removeExpanded(problem.id);
+          if (this.notesEditor()?.problemId === problem.id) this.closeNotesEditor(false);
           this.problems.update((current) =>
             current.filter(({ id }) => id !== problem.id),
           );
@@ -683,6 +702,76 @@ export class ProblemListPage {
     this.closeInlineEdit();
   }
 
+  requestNotesEdit(problem: Problem): void {
+    const active = this.notesEditor();
+    if (active?.problemId === problem.id) return;
+    if (!this.resolveNotesEditor()) return;
+    this.notesEditor.set({
+      problemId: problem.id,
+      originalNotes: problem.notes,
+      draft: problem.notes,
+      mode: 'edit',
+    });
+    this.notesError.set(null);
+    this.focusNotesAfterRender('edit');
+  }
+
+  updateNotesDraft(draft: string): void {
+    this.notesEditor.update((current) =>
+      current === null ? null : { ...current, draft },
+    );
+  }
+
+  setNotesMode(mode: ExpandedNotesEditorMode): void {
+    if (this.notesSaving()) return;
+    this.notesEditor.update((current) =>
+      current === null ? null : { ...current, mode },
+    );
+    this.focusNotesAfterRender(mode);
+  }
+
+  saveNotes(): void {
+    const editor = this.notesEditor();
+    if (editor === null || this.notesSaving()) return;
+    if (editor.draft === editor.originalNotes) {
+      this.closeNotesEditor();
+      return;
+    }
+    this.notesSaving.set(true);
+    this.notesError.set(null);
+    this.problemsApi.updateProblem(editor.problemId, { notes: editor.draft })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (updated) => {
+          this.notesSaving.set(false);
+          this.replaceProblem(updated);
+          this.closeNotesEditor();
+          this.successMessage.set(`${updated.name} notes were updated.`);
+        },
+        error: (error: unknown) => {
+          this.notesSaving.set(false);
+          this.notesError.set(this.notesErrorMessage(error));
+        },
+      });
+  }
+
+  cancelNotesEdit(): void {
+    const editor = this.notesEditor();
+    if (editor === null || this.notesSaving()) return;
+    if (notesEditorIsDirty(editor) && !window.confirm('Discard unsaved notes changes?')) return;
+    this.closeNotesEditor();
+  }
+
+  requestExpansion(id: string): void {
+    const editor = this.notesEditor();
+    if (editor?.problemId === id) {
+      if (this.notesSaving()) return;
+      if (notesEditorIsDirty(editor) && !window.confirm('Discard unsaved notes changes?')) return;
+      this.closeNotesEditor(false);
+    }
+    this.problemTable()?.toggle(id);
+  }
+
   private resolveInlineEdit(): boolean {
     const edit = this.inlineEdit();
     if (edit === null) return true;
@@ -692,6 +781,31 @@ export class ProblemListPage {
     }
     this.closeInlineEdit();
     return true;
+  }
+
+  private resolveNotesEditor(): boolean {
+    const editor = this.notesEditor();
+    if (editor === null) return true;
+    if (this.notesSaving()) return false;
+    if (notesEditorIsDirty(editor) && !window.confirm('Discard unsaved notes changes?')) return false;
+    this.closeNotesEditor();
+    return true;
+  }
+
+  private closeNotesEditor(restoreFocus = true): void {
+    const editor = this.notesEditor();
+    this.notesEditor.set(null);
+    this.notesError.set(null);
+    if (restoreFocus && editor) {
+      queueMicrotask(() => this.problemTable()?.focusNotesButton(editor.problemId));
+    }
+  }
+
+  private focusNotesAfterRender(mode: ExpandedNotesEditorMode): void {
+    afterNextRender(() => {
+      if (mode === 'edit') this.problemTable()?.focusNotesTextarea();
+      else this.problemTable()?.focusNotesModeButton('preview');
+    }, { injector: this.injector });
   }
 
   private closeInlineEdit(): void {
@@ -786,6 +900,15 @@ export class ProblemListPage {
       next.delete(id);
       return next;
     });
+  }
+
+  private notesErrorMessage(error: unknown): string {
+    if (error instanceof HttpErrorResponse) {
+      if (error.status === 404) return 'This problem no longer exists. Refresh the list before trying again.';
+      if (error.status === 400) return 'Notes could not be saved. Check the value and try again.';
+      if (error.status === 0) return 'Network unavailable. Check your connection and try again.';
+    }
+    return 'Notes could not be saved. Try again.';
   }
 
   private replaceProblem(problem: Problem): void {

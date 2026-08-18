@@ -6,8 +6,8 @@ The application is intended primarily for tracking NeetCode and LeetCode problem
 
 ## Project status
 
-The functional MVP is implemented but has not yet completed its final clean
-validation run, final audit confirmation, or release/tag step.
+The MVP is complete. This post-MVP phase adds safe rendered Notes and direct
+expanded-row Notes editing without changing the persisted Notes representation.
 
 Implemented MVP capabilities include:
 
@@ -21,11 +21,12 @@ Implemented MVP capabilities include:
 - PostgreSQL persistence and restart verification.
 
 `Last reviewed` is server-derived, read-only hydrated state. Tags, Solution,
-Source, and Notes remain editable through the side panel. Inline edits use
+Source remain editable through the side panel. Notes are also editable in an
+expanded row. Inline edits use
 explicit **Save** and **Cancel** controls, and the hydrated `PATCH` response is
 authoritative.
 
-Post-MVP candidates are safe Markdown rendering and preview, Excel export,
+Post-MVP candidates are Excel export,
 import, optional Playwright/E2E coverage, responsive Actions-seam polish, and
 other UI polish. Virtual scrolling may be evaluated only if progressive
 rendering proves insufficient in measured browser use.
@@ -416,9 +417,8 @@ error with an explicit retry; a Categories or Tags failure shows a nonblocking
 warning while retaining a successfully loaded Problems table.
 
 The semantic table displays the fixed MVP preview columns, an explicit Edit
-action, and independent expansion of multiple rows. Expanded rows show
-plain-text Notes and UTC creation/update timestamps. Notes are not parsed as
-Markdown. Date-only `lastReviewedOn` values are displayed exactly as returned
+action, and independent expansion of multiple rows. Expanded rows safely render
+saved Markdown Notes and show UTC creation/update timestamps. Date-only `lastReviewedOn` values are displayed exactly as returned
 by the API, avoiding timezone conversion.
 
 The table has a viewport-relative two-axis scroll region with a sticky header.
@@ -433,12 +433,23 @@ fixed columns, while non-sticky Notes and link previews may use ellipsis.
 Collapsed rows show at most two Tags plus a `+N` indicator and expose full text
 through accessible labels, native titles, or expansion. Notes use a single-line
 raw-text preview in the collapsed table and remain fully available in the
-expanded row.
+expanded row. That row offers **Add notes** or **Edit notes** with a raw
+Markdown textarea, manual Edit/Preview, explicit Save/Cancel, and a field-only
+Notes PATCH. Raw HTML, images, and non-HTTP(S) Markdown links are inert; Angular
+keeps its normal `[innerHTML]` sanitization active.
+
+Within the Notes editor, **Cmd/Ctrl+Enter** saves and **Cmd/Ctrl+Shift+Enter**
+switches between Edit and Preview without saving. The visible controls remain
+the primary interaction. Double-clicking non-interactive Notes-header space also
+opens Edit mode; rendered Notes remain selectable and do not double-click into
+editing. Escape cancels when delivered to the application, though browser or
+fullscreen behavior may intercept it. Browser-reserved shortcuts such as
+Cmd/Ctrl+P are not overridden.
 
 Solution and Source use the API-provided labels and URLs, open in a new tab,
 and include safe `rel` attributes. Name, Category, Difficulty, Status, and
-Times solved support explicit Save/Cancel inline editing. Tags, links, and
-Notes remain in the side panel. Last reviewed is read-only server-derived state;
+Times solved support explicit Save/Cancel inline editing. Tags and links remain
+in the side panel; Notes are available both there and in the expanded row. Last reviewed is read-only server-derived state;
 changing Times solved sends only the count and uses the hydrated response.
 
 ## Problem search and filters
@@ -446,8 +457,8 @@ changing Times solved sends only the count and uses the hydrated response.
 The Problems toolbar filters the already loaded collection locally without
 issuing API requests. Search matches partial text across Problem names,
 Category names, Tag names, and raw Notes. It is case-insensitive and
-diacritic-insensitive, so `dinamica` matches `Dinámica`; Notes remain plain raw
-text and are not rendered as Markdown in this phase.
+diacritic-insensitive, so `dinamica` matches `Dinámica`; search uses raw Notes
+source rather than rendered Markdown.
 
 Category, Difficulty, Status, and Tags can be combined with search. Difficulty
 includes an explicit **Unspecified** option for Problems whose value is `null`.
@@ -507,7 +518,7 @@ is enabled. Tags are optional; if Tags fail to load, creation remains available
 without tag selection and the page offers a separate reference-data retry.
 
 The typed creation form includes Name, Category, Difficulty, Status, Tags,
-Solution and Source links, Last reviewed, Times solved, and plain-text Notes.
+Solution and Source links, Last reviewed, Times solved, and raw Markdown Notes.
 Defaults follow the product specification:
 
 ```text
